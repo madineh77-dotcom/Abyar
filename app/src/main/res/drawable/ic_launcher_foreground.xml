@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- قطره آب آبی -->
+    <path
+        android:fillColor="#1976D2"
+        android:pathData="M54,20 C54,20 32,44 32,60 C32,72.15 41.85,82 54,82 C66.15,82 76,72.15 76,60 C76,44 54,20 54,20 Z" />
+
+    <!-- بازتاب نور روی قطره -->
+    <path
+        android:fillColor="#42A5F5"
+        android:pathData="M46,42 C46,42 38,54 38,62 C38,64 39,66 41,66 C43,66 44,64 44,62 C44,54 46,42 46,42 Z" />
+
+    <!-- برگ سبز داخل قطره -->
+    <path
+        android:fillColor="#66BB6A"
+        android:pathData="M54,58 C54,54 58,50 62,50 C62,54 58,58 54,58 Z" />
+
+    <!-- ساقه برگ -->
+    <path
+        android:strokeColor="#43A047"
+        android:strokeWidth="2"
+        android:fillColor="#00000000"
+        android:pathData="M54,72 L54,58" />
+
+    <!-- برگ دوم -->
+    <path
+        android:fillColor="#43A047"
+        android:pathData="M54,64 C54,61 51,58 47,58 C47,61 50,64 54,64 Z" />
+</vector>
