@@ -1,5 +1,6 @@
 package com.example.abyar.ui.onboarding
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -30,6 +31,7 @@ data class OnboardingPage(
     val color: Color
 )
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun OnboardingScreen(onFinished: () -> Unit) {
     val pages = listOf(
@@ -81,7 +83,6 @@ fun OnboardingScreen(onFinished: () -> Unit) {
             modifier = Modifier.fillMaxSize().padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // دکمه رد کردن
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                 horizontalArrangement = Arrangement.End
@@ -91,7 +92,6 @@ fun OnboardingScreen(onFinished: () -> Unit) {
                 }
             }
 
-            // محتوای اسلایدها
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.weight(1f)
@@ -102,7 +102,6 @@ fun OnboardingScreen(onFinished: () -> Unit) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    // دایره رنگی با آیکون
                     Box(
                         modifier = Modifier
                             .size(180.dp)
@@ -148,7 +147,6 @@ fun OnboardingScreen(onFinished: () -> Unit) {
                 }
             }
 
-            // نشانگرها
             Row(
                 horizontalArrangement = Arrangement.Center,
                 modifier = Modifier.padding(vertical = 24.dp)
