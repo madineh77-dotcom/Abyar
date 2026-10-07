@@ -1,5 +1,5 @@
 package com.example.abyar.ui.owner
-
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -116,7 +116,8 @@ fun OwnerScreen(vm: AdminViewModel = viewModel()) {
                             }
                         }
                         Spacer(Modifier.height(14.dp))
-                        Divider(color = Color(0xFFEEEEEE))
+                        HorizontalDivider(color = Color(0xFFEEEEEE))
+                    
                         Spacer(Modifier.height(14.dp))
                         Row {
                             Column(Modifier.weight(1f)) {
