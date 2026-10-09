@@ -10,14 +10,16 @@ object Scheduler {
     ): List<IrrigationTurn> {
         val turns = mutableListOf<IrrigationTurn>()
         var currentTime = startTime
-        val totalHours = owners.sumOf { it.shareHours ?: 0.0 }
-        if (totalHours <= 0.0) return turns
-        val cycleDurationMs = well.cycleDurationDays * 24 * 60 * 60 * 1000L
 
-        for (owner in owners) {
-            val ownerHours = owner.shareHours ?: 0.0
-            if (ownerHours <= 0.0) continue
-            val shareRatio = ownerHours / totalHours
+        // فقط کسانی که سهم آب دارند
+        val withWater = owners.filter { it.shareHours > 0.0 }
+        val totalHours = withWater.sumOf { it.shareHours }
+        if (totalHours <= 0.0) return turns
+
+        val cycleDurationMs = well.cycleDurationDays * 24L * 60L * 60L * 1000L
+
+        for (owner in withWater) {
+            val shareRatio = owner.shareHours / totalHours
             val durationMs = (cycleDurationMs * shareRatio).toLong()
 
             turns.add(
