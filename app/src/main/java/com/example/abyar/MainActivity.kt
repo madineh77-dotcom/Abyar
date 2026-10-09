@@ -14,6 +14,7 @@ import com.example.abyar.ui.common.ComingSoonScreen
 import com.example.abyar.ui.home.HomeScreen
 import com.example.abyar.ui.home.HomeViewModel
 import com.example.abyar.ui.onboarding.OnboardingScreen
+import com.example.abyar.ui.owners.OwnersScreen
 import com.example.abyar.ui.profile.ProfileEditScreen
 import com.example.abyar.ui.well.WellScreen
 import com.example.abyar.ui.wells.MyWellsScreen
@@ -44,8 +45,9 @@ class MainActivity : ComponentActivity() {
 
                     // بارگذاری داده‌های چاه فعال
                     LaunchedEffect(currentWellId, userNationalCode) {
-                        if (currentWellId != null && userNationalCode.isNotBlank()) {
-                            homeVm.loadWell(currentWellId!!, userNationalCode)
+                        val wid = currentWellId
+                        if (wid != null && userNationalCode.isNotBlank()) {
+                            homeVm.loadWell(wid, userNationalCode)
                         } else {
                             homeVm.clear()
                         }
@@ -56,8 +58,9 @@ class MainActivity : ComponentActivity() {
                     val currentUser by homeVm.currentUser.collectAsState()
 
                     val nextTurnInfo = remember(nextTurn) {
-                        if (nextTurn == null) "نوبتی ثبت نشده"
-                        else "${formatPersianDateTime(nextTurn!!.startTime)} تا ${formatPersianDateTime(nextTurn!!.endTime)}"
+                        val nt = nextTurn
+                        if (nt == null) "نوبتی ثبت نشده"
+                        else "${formatPersianDateTime(nt.startTime)} تا ${formatPersianDateTime(nt.endTime)}"
                     }
 
                     when {
@@ -68,7 +71,7 @@ class MainActivity : ComponentActivity() {
                             })
                         }
 
-                        // اگر کد ملی ندارد → پروفایل
+                        // اگر کد ملی ندارد → صفحه پروفایل
                         userNationalCode.isBlank() -> {
                             ProfileEditScreen(
                                 initialName = userName,
@@ -158,6 +161,21 @@ class MainActivity : ComponentActivity() {
                                 onBack = { currentScreen = "home" },
                                 onWellSaved = { currentScreen = "home" }
                             )
+                        }
+
+                        currentScreen == "owners" -> {
+                            val wid = currentWellId
+                            if (wid != null) {
+                                OwnersScreen(
+                                    wellId = wid,
+                                    onBack = { currentScreen = "home" }
+                                )
+                            } else {
+                                ComingSoonScreen(
+                                    title = "مدیریت مالکان",
+                                    onBack = { currentScreen = "home" }
+                                )
+                            }
                         }
 
                         else -> {
