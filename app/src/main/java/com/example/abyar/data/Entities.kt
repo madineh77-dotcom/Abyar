@@ -3,15 +3,17 @@ package com.example.abyar.data
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-enum class UserRole { SUPER_ADMIN, MAJOR_OWNER, SMALL_OWNER, OPERATOR }
+enum class WageType { CASH, FROM_TOTAL, FROM_OWN_SHARE }
 
 @Entity(tableName = "wells")
 data class Well(
     @PrimaryKey val id: String,
+    val code: String,               // کد ۸ رقمی یکتای چاه
     val name: String,
-    val totalShares: Int,
-    val cycleDurationDays: Int,
-    val shareType: String
+    val location: String? = null,
+    val totalHours: Double,         // کل ساعت آب (مثلاً 240.0)
+    val cycleDurationDays: Int,     // مدت مدار (روز)
+    val createdAt: Long = System.currentTimeMillis()
 )
 
 @Entity(tableName = "users")
@@ -20,11 +22,27 @@ data class User(
     val wellId: String,
     val fullName: String,
     val phone: String,
-    val role: UserRole,
-    val parentId: String? = null,
-    val shareHours: Double? = null,
-    val sharePercentage: Double? = null
-)
+    val nationalCode: String,        // کد ملی ۱۰ رقمی
+    val shareHours: Double = 0.0,
+    val isOperator: Boolean = false,
+    val isAbyar: Boolean = false,
+    val operatorWageType: WageType? = null,
+    val operatorWageAmount: Double = 0.0,
+    val abyarWageType: WageType? = null,
+    val abyarWageAmount: Double = 0.0,
+    val groupLeaderId: String? = null,
+    val createdAt: Long = System.currentTimeMillis()
+) {
+    // نقش خودکار بر اساس سهم
+    val roleLabel: String
+        get() = when {
+            shareHours > 5.0 -> "مالک عمده"
+            shareHours > 0.0 -> "خرده‌مالک"
+            isOperator -> "موتوربان"
+            isAbyar -> "آبیار"
+            else -> "کاربر"
+        }
+}
 
 @Entity(tableName = "irrigation_turns")
 data class IrrigationTurn(
@@ -41,9 +59,20 @@ data class IrrigationTurn(
 data class Transaction(
     @PrimaryKey val id: String,
     val wellId: String,
-    val type: String,
+    val type: String,       // INCOME یا EXPENSE
     val category: String,
     val amount: Long,
     val date: Long,
-    val description: String?
+    val description: String? = null,
+    val relatedUserId: String? = null
+)
+
+@Entity(tableName = "notification_groups")
+data class NotificationGroup(
+    @PrimaryKey val id: String,
+    val wellId: String,
+    val name: String,
+    val leaderId: String,
+    val memberIds: String = "",
+    val createdAt: Long = System.currentTimeMillis()
 )
