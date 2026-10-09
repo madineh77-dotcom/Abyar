@@ -5,18 +5,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.example.abyar.ui.admin.AdminScreen
+import com.example.abyar.ui.common.ComingSoonScreen
+import com.example.abyar.ui.home.HomeScreen
 import com.example.abyar.ui.onboarding.OnboardingScreen
 import com.example.abyar.ui.owner.OwnerScreen
-import com.example.abyar.ui.theme.AbyarBlue
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -28,55 +26,62 @@ class MainActivity : ComponentActivity() {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFFF5F7FA)) {
                     var showOnboarding by remember { mutableStateOf(isFirstLaunch) }
+                    var currentScreen by remember { mutableStateOf("home") }
+                    var screenTitle by remember { mutableStateOf("") }
 
-                    if (showOnboarding) {
-                        OnboardingScreen(onFinished = {
-                            prefs.edit().putBoolean("first_launch", false).apply()
-                            showOnboarding = false
-                        })
-                    } else {
-                        MainTabs()
+                    when {
+                        showOnboarding -> {
+                            OnboardingScreen(onFinished = {
+                                prefs.edit().putBoolean("first_launch", false).apply()
+                                showOnboarding = false
+                            })
+                        }
+                        currentScreen == "home" -> {
+                            HomeScreen(
+                                userName = "کاربر آبیار",
+                                phone = "۰۹۱۲۳۴۵۶۷۸۹",
+                                wellName = "چاه نمونه",
+                                wellCode = "12345678",
+                                nextTurnInfo = "۱۴۰۳/۰۷/۱۶ - ۱۴:۰۰",
+                                onPanelClick = { route ->
+                                    when (route) {
+                                        "well", "owners", "schedule", "finance",
+                                        "operator", "abyar", "notify", "contacts",
+                                        "rules", "reports", "settings", "support" -> {
+                                            screenTitle = when (route) {
+                                                "well" -> "ثبت چاه"
+                                                "owners" -> "مدیریت مالکان"
+                                                "schedule" -> "برنامه آبیاری"
+                                                "finance" -> "مدیریت مالی"
+                                                "operator" -> "پنل موتوربان"
+                                                "abyar" -> "پنل آبیار"
+                                                "notify" -> "اطلاع‌رسانی"
+                                                "contacts" -> "دفترچه تلفن"
+                                                "rules" -> "قوانین و ضوابط"
+                                                "reports" -> "گزارش‌ها"
+                                                "settings" -> "تنظیمات"
+                                                "support" -> "پشتیبانی"
+                                                else -> "پنل"
+                                            }
+                                            currentScreen = route
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                        // صفحه‌های موجود فعلی
+                        currentScreen == "admin_test" -> AdminScreen()
+                        currentScreen == "owner_test" -> OwnerScreen()
+                        // صفحه‌های در حال ساخت
+                        else -> {
+                            ComingSoonScreen(
+                                title = screenTitle,
+                                onBack = { currentScreen = "home" }
+                            )
+                        }
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun MainTabs() {
-    var tab by remember { mutableIntStateOf(0) }
-
-    Scaffold(
-        bottomBar = {
-            NavigationBar(containerColor = Color.White) {
-                NavigationBarItem(
-                    selected = tab == 0,
-                    onClick = { tab = 0 },
-                    icon = { Icon(Icons.Default.Home, contentDescription = null) },
-                    label = { Text("پنل مدیر") },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = AbyarBlue,
-                        selectedTextColor = AbyarBlue,
-                        indicatorColor = Color(0xFFE3F2FD)
-                    )
-                )
-                NavigationBarItem(
-                    selected = tab == 1,
-                    onClick = { tab = 1 },
-                    icon = { Icon(Icons.Default.Person, contentDescription = null) },
-                    label = { Text("پنل مالک") },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = AbyarBlue,
-                        selectedTextColor = AbyarBlue,
-                        indicatorColor = Color(0xFFE3F2FD)
-                    )
-                )
-            }
-        }
-    ) { padding ->
-        Surface(modifier = Modifier.padding(padding)) {
-            if (tab == 0) AdminScreen() else OwnerScreen()
         }
     }
 }
