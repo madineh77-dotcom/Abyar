@@ -24,6 +24,9 @@ interface WellDao {
     @Query("SELECT * FROM wells")
     fun getAllWells(): Flow<List<Well>>
 
+    @Query("SELECT * FROM wells WHERE id = :wellId LIMIT 1")
+    suspend fun getWellById(wellId: String): Well?
+
     @Query("SELECT * FROM wells WHERE code = :code LIMIT 1")
     suspend fun getWellByCode(code: String): Well?
 
@@ -74,6 +77,9 @@ interface TurnDao {
 
     @Query("SELECT * FROM irrigation_turns WHERE wellId = :wellId AND userId = :userId ORDER BY startTime ASC")
     fun getTurnsByUser(wellId: String, userId: String): Flow<List<IrrigationTurn>>
+
+    @Query("SELECT * FROM irrigation_turns WHERE wellId = :wellId AND userId = :userId AND status = 'PENDING' ORDER BY startTime ASC LIMIT 1")
+    fun getNextPendingTurn(wellId: String, userId: String): Flow<IrrigationTurn?>
 
     @Query("DELETE FROM irrigation_turns WHERE wellId = :wellId")
     suspend fun deleteTurnsByWell(wellId: String)
