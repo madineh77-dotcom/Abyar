@@ -636,7 +636,8 @@ private fun WageSelector(
         }
         Spacer(Modifier.height(6.dp))
         OutlinedTextField(
-            amount, { amount = it },
+            value = amount,
+            onValueChange = onAmountChange,
             label = {
                 Text(
                     if (selected == WageType.CASH) "مبلغ (تومان)" else "مقدار (ساعت)",
