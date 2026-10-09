@@ -10,11 +10,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import com.example.abyar.ui.admin.AdminScreen
 import com.example.abyar.ui.common.ComingSoonScreen
 import com.example.abyar.ui.home.HomeScreen
 import com.example.abyar.ui.onboarding.OnboardingScreen
-import com.example.abyar.ui.owner.OwnerScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,35 +42,25 @@ class MainActivity : ComponentActivity() {
                                 wellCode = "12345678",
                                 nextTurnInfo = "۱۴۰۳/۰۷/۱۶ - ۱۴:۰۰",
                                 onPanelClick = { route ->
-                                    when (route) {
-                                        "well", "owners", "schedule", "finance",
-                                        "operator", "abyar", "notify", "contacts",
-                                        "rules", "reports", "settings", "support" -> {
-                                            screenTitle = when (route) {
-                                                "well" -> "ثبت چاه"
-                                                "owners" -> "مدیریت مالکان"
-                                                "schedule" -> "برنامه آبیاری"
-                                                "finance" -> "مدیریت مالی"
-                                                "operator" -> "پنل موتوربان"
-                                                "abyar" -> "پنل آبیار"
-                                                "notify" -> "اطلاع‌رسانی"
-                                                "contacts" -> "دفترچه تلفن"
-                                                "rules" -> "قوانین و ضوابط"
-                                                "reports" -> "گزارش‌ها"
-                                                "settings" -> "تنظیمات"
-                                                "support" -> "پشتیبانی"
-                                                else -> "پنل"
-                                            }
-                                            currentScreen = route
-                                        }
+                                    screenTitle = when (route) {
+                                        "well" -> "ثبت چاه"
+                                        "owners" -> "مدیریت مالکان"
+                                        "schedule" -> "برنامه آبیاری"
+                                        "finance" -> "مدیریت مالی"
+                                        "operator" -> "پنل موتوربان"
+                                        "abyar" -> "پنل آبیار"
+                                        "notify" -> "اطلاع‌رسانی"
+                                        "contacts" -> "دفترچه تلفن"
+                                        "rules" -> "قوانین و ضوابط"
+                                        "reports" -> "گزارش‌ها"
+                                        "settings" -> "تنظیمات"
+                                        "support" -> "پشتیبانی"
+                                        else -> "پنل"
                                     }
+                                    currentScreen = route
                                 }
                             )
                         }
-                        // صفحه‌های موجود فعلی
-                        currentScreen == "admin_test" -> AdminScreen()
-                        currentScreen == "owner_test" -> OwnerScreen()
-                        // صفحه‌های در حال ساخت
                         else -> {
                             ComingSoonScreen(
                                 title = screenTitle,
