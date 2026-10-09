@@ -39,6 +39,7 @@ fun HomeScreen(
     wellName: String,
     wellCode: String,
     nextTurnInfo: String,
+    onEditProfile: () -> Unit,
     onPanelClick: (String) -> Unit
 ) {
     val panels = listOf(
@@ -89,12 +90,12 @@ fun HomeScreen(
                             Text(userName, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                             Text(phone, color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
                         }
-                        IconButton(onClick = { }) {
+                        IconButton(onClick = onEditProfile) {
                             Icon(Icons.Default.Edit, null, tint = Color.White)
                         }
                     }
                     Spacer(Modifier.height(16.dp))
-                    Divider(color = Color.White.copy(alpha = 0.2f))
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.2f))
                     Spacer(Modifier.height(12.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Water, null, tint = Color.White, modifier = Modifier.size(16.dp))
