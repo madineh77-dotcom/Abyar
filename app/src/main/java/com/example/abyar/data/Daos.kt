@@ -60,17 +60,53 @@ interface UserDao {
     @Query("SELECT SUM(shareHours) FROM users WHERE wellId = :wellId")
     suspend fun getTotalShareHours(wellId: String): Double?
 
-    @Query("SELECT * FROM users WHERE wellId = :wellId AND groupLeaderId = :leaderId")
-    fun getGroupMembers(wellId: String, leaderId: String): Flow<List<User>>
+    @Query("SELECT * FROM users WHERE groupId = :groupId ORDER BY shareHours DESC")
+    fun getUsersByGroup(groupId: String): Flow<List<User>>
+
+    @Query("SELECT * FROM users WHERE groupId = :groupId ORDER BY shareHours DESC")
+    suspend fun getUsersByGroupSync(groupId: String): List<User>
+
+    @Query("SELECT * FROM users WHERE wellId = :wellId AND shareHours > 5.0 ORDER BY shareHours DESC")
+    fun getMajorOwnersByWell(wellId: String): Flow<List<User>>
+
+    @Query("SELECT * FROM users WHERE wellId = :wellId AND groupId IS NULL")
+    fun getUsersWithoutGroup(wellId: String): Flow<List<User>>
 
     @Query("DELETE FROM users WHERE id = :userId")
     suspend fun deleteUser(userId: String)
 }
 
 @Dao
+interface GroupDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertGroup(group: OwnerGroup)
+
+    @Update
+    suspend fun updateGroup(group: OwnerGroup)
+
+    @Query("SELECT * FROM owner_groups WHERE wellId = :wellId")
+    fun getGroupsByWell(wellId: String): Flow<List<OwnerGroup>>
+
+    @Query("SELECT * FROM owner_groups WHERE wellId = :wellId")
+    suspend fun getGroupsByWellSync(wellId: String): List<OwnerGroup>
+
+    @Query("SELECT * FROM owner_groups WHERE id = :groupId LIMIT 1")
+    suspend fun getGroupById(groupId: String): OwnerGroup?
+
+    @Query("DELETE FROM owner_groups WHERE id = :groupId")
+    suspend fun deleteGroup(groupId: String)
+
+    @Query("SELECT COUNT(*) FROM owner_groups WHERE wellId = :wellId")
+    suspend fun countGroupsByWell(wellId: String): Int
+}
+
+@Dao
 interface TurnDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTurns(turns: List<IrrigationTurn>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTurn(turn: IrrigationTurn)
 
     @Query("SELECT * FROM irrigation_turns WHERE wellId = :wellId ORDER BY startTime ASC")
     fun getTurnsByWell(wellId: String): Flow<List<IrrigationTurn>>
@@ -81,11 +117,17 @@ interface TurnDao {
     @Query("SELECT * FROM irrigation_turns WHERE wellId = :wellId AND userId = :userId AND status = 'PENDING' ORDER BY startTime ASC LIMIT 1")
     fun getNextPendingTurn(wellId: String, userId: String): Flow<IrrigationTurn?>
 
+    @Query("SELECT * FROM irrigation_turns WHERE wellId = :wellId AND startTime >= :dayStart AND startTime < :dayEnd ORDER BY startTime ASC")
+    fun getTurnsForDateRange(wellId: String, dayStart: Long, dayEnd: Long): Flow<List<IrrigationTurn>>
+
     @Query("DELETE FROM irrigation_turns WHERE wellId = :wellId")
     suspend fun deleteTurnsByWell(wellId: String)
 
     @Query("DELETE FROM irrigation_turns WHERE id = :turnId")
     suspend fun deleteTurn(turnId: String)
+
+    @Query("SELECT COUNT(*) FROM irrigation_turns WHERE wellId = :wellId")
+    suspend fun countTurnsByWell(wellId: String): Int
 }
 
 @Dao
@@ -98,10 +140,10 @@ interface TransactionDao {
 }
 
 @Dao
-interface GroupDao {
+interface NotificationDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertGroup(group: NotificationGroup)
+    suspend fun insertLog(log: NotificationLog)
 
-    @Query("SELECT * FROM notification_groups WHERE wellId = :wellId")
-    fun getGroupsByWell(wellId: String): Flow<List<NotificationGroup>>
+    @Query("SELECT * FROM notification_logs WHERE wellId = :wellId ORDER BY sentAt DESC LIMIT 100")
+    fun getLogsByWell(wellId: String): Flow<List<NotificationLog>>
 }
