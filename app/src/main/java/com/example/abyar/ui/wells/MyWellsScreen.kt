@@ -5,8 +5,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -14,7 +16,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -22,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.abyar.ui.theme.*
+import com.example.abyar.util.toEnglishDigits
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,14 +39,22 @@ fun MyWellsScreen(
     val wells by vm.myWells.collectAsState()
     val error by vm.error.collectAsState()
 
+    val snackbarHostState = remember { SnackbarHostState() }
+
     var showAddSheet by remember { mutableStateOf(false) }
     var showJoinSheet by remember { mutableStateOf(false) }
 
-    LaunchedEffect(nationalCode) {
-        vm.loadMyWells(nationalCode)
+    LaunchedEffect(nationalCode) { vm.loadMyWells(nationalCode) }
+
+    LaunchedEffect(error) {
+        if (error.isNotEmpty()) {
+            snackbarHostState.showSnackbar(error, duration = SnackbarDuration.Short)
+            vm.clearError()
+        }
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("چاه‌های من", color = Color.White, fontWeight = FontWeight.Bold) },
@@ -72,7 +82,6 @@ fun MyWellsScreen(
                 .padding(padding)
                 .padding(16.dp)
         ) {
-            // دکمه پیوستن با کد
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -140,12 +149,8 @@ fun MyWellsScreen(
         }
     }
 
-    // شیت افزودن چاه جدید
     if (showAddSheet) {
         AddNewWellSheet(
-            nationalCode = nationalCode,
-            fullName = fullName,
-            phone = phone,
             error = error,
             onDismiss = { showAddSheet = false; vm.clearError() },
             onSubmit = { name, loc, hours, days, share, onDone ->
@@ -158,7 +163,6 @@ fun MyWellsScreen(
         )
     }
 
-    // شیت پیوستن با کد
     if (showJoinSheet) {
         JoinWellSheet(
             error = error,
@@ -230,9 +234,6 @@ private fun WellCard(item: WellWithShare, isActive: Boolean, onClick: () -> Unit
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddNewWellSheet(
-    nationalCode: String,
-    fullName: String,
-    phone: String,
     error: String,
     onDismiss: () -> Unit,
     onSubmit: (name: String, loc: String, hours: Double, days: Int, share: Double, onDone: () -> Unit) -> Unit
@@ -245,28 +246,49 @@ private fun AddNewWellSheet(
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
-            Modifier.padding(20.dp).fillMaxWidth(),
+            Modifier.padding(20.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text("افزودن چاه جدید", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AbyarBlueDark)
             Text("شما مدیر این چاه خواهید بود", fontSize = 13.sp, color = TextSecondary)
 
-            OutlinedTextField(name, { name = it }, label = { Text("نام چاه *") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(location, { location = it }, label = { Text("موقعیت مکانی") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(
-                hours, { hours = it }, label = { Text("کل ساعت آب چاه *") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.fillMaxWidth()
+                name, { name = it },
+                label = { Text("نام چاه *") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
             )
             OutlinedTextField(
-                days, { days = it }, label = { Text("مدت مدار (روز) *") },
+                location, { location = it },
+                label = { Text("موقعیت مکانی") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
+            )
+            OutlinedTextField(
+                hours, { hours = toEnglishDigits(it) },
+                label = { Text("کل ساعت آب چاه *") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
+            )
+            OutlinedTextField(
+                days, { days = toEnglishDigits(it) },
+                label = { Text("مدت مدار (روز) *") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
             )
             OutlinedTextField(
-                myShare, { myShare = it }, label = { Text("سهم شما از این چاه (ساعت) *") },
+                myShare, { myShare = toEnglishDigits(it) },
+                label = { Text("سهم شما از این چاه (ساعت) *") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
             )
 
             if (error.isNotEmpty()) {
@@ -308,23 +330,33 @@ private fun JoinWellSheet(
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
-            Modifier.padding(20.dp).fillMaxWidth(),
+            Modifier.padding(20.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text("پیوستن به چاه موجود", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AbyarBlueDark)
             Text("کد ۸ رقمی چاه را وارد کنید", fontSize = 13.sp, color = TextSecondary)
 
             OutlinedTextField(
-                code, { if (it.length <= 8) code = it },
-                label = { Text("کد چاه *") },
+                code,
+                { newValue ->
+                    val converted = toEnglishDigits(newValue)
+                    if (converted.length <= 8 && converted.all { it.isDigit() }) {
+                        code = converted
+                    }
+                },
+                label = { Text("کد چاه (۸ رقمی) *") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
             )
             OutlinedTextField(
-                share, { share = it },
+                share, { share = toEnglishDigits(it) },
                 label = { Text("سهم شما (ساعت) *") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
             )
 
             if (error.isNotEmpty()) {
