@@ -92,9 +92,11 @@ fun OperatorDashboardScreen(
 
                 // آمار امروز
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    val pendingCount = turns.count { it.status == "PENDING" }
+                    val completedCount = turns.count { it.status == "COMPLETED" }
                     OpStat("نوبت‌های امروز", "${todayTurns.size}", Color.White)
-                    OpStat("در انتظار", "${turns.count { it.status == "PENDING" }}", Color.White)
-                    OpStat("انجام‌شده", "${turns.count { it.status == "COMPLETED" }}", Color.White)
+                    OpStat("در انتظار", "$pendingCount", Color.White)
+                    OpStat("انجام‌شده", "$completedCount", Color.White)
                 }
             }
         }
