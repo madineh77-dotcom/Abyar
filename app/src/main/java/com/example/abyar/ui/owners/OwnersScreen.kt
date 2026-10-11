@@ -1,5 +1,6 @@
 package com.example.abyar.ui.owners
-
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -30,211 +31,172 @@ import com.example.abyar.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OwnersScreen(
-    wellId: String,
-    onBack: () -> Unit,
-    vm: OwnersViewModel = viewModel()
+private fun AddOwnerSheet(
+    remainingHours: Double,
+    onDismiss: () -> Unit,
+    onSubmit: (
+        name: String, phone: String, nc: String, share: Double,
+        isOp: Boolean, opWt: WageType?, opWa: Double,
+        isAb: Boolean, abWt: WageType?, abWa: Double
+    ) -> Unit
 ) {
-    val stats by vm.stats.collectAsState()
-    val grouped by vm.grouped.collectAsState()
-    val error by vm.error.collectAsState()
+    var name by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var nc by remember { mutableStateOf("") }
+    var share by remember { mutableStateOf("") }
+    var isOp by remember { mutableStateOf(false) }
+    var isAb by remember { mutableStateOf(false) }
+    var opWageType by remember { mutableStateOf(WageType.CASH) }
+    var opWageAmount by remember { mutableStateOf("") }
+    var abWageType by remember { mutableStateOf(WageType.CASH) }
+    var abWageAmount by remember { mutableStateOf("") }
+    var localError by remember { mutableStateOf("") }
 
-    val snackbarHostState = remember { SnackbarHostState() }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .padding(20.dp)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text("افزودن مالک جدید", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AbyarBlueDark)
+            Text(
+                "باقیمانده ساعت قابل تخصیص: $remainingHours ساعت",
+                fontSize = 13.sp,
+                color = AbyarOrange,
+                fontWeight = FontWeight.SemiBold
+            )
 
-    var showAddSheet by remember { mutableStateOf(false) }
-    var ownerToDelete by remember { mutableStateOf<User?>(null) }
-    var expandedMajorId by remember { mutableStateOf<String?>(null) }
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("نام و نام خانوادگی *") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            )
 
-    LaunchedEffect(wellId) { vm.loadOwners(wellId) }
-
-    LaunchedEffect(error) {
-        if (error.isNotEmpty()) {
-            snackbarHostState.showSnackbar(error, duration = SnackbarDuration.Short)
-            vm.clearError()
-        }
-    }
-
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = { Text("مدیریت مالکان", color = Color.White, fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, null, tint = Color.White)
+            OutlinedTextField(
+                value = phone,
+                onValueChange = { newValue ->
+                    val converted = com.example.abyar.util.toEnglishDigits(newValue)
+                    if (converted.length <= 11 && converted.all { it.isDigit() || it == ' ' }) {
+                        phone = converted
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = AbyarBlueDark)
+                label = { Text("شماره تماس (11 رقمی، شروع با 0) *") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddSheet = true },
-                containerColor = AbyarGreen
-            ) {
-                Icon(Icons.Default.PersonAdd, null, tint = Color.White)
-            }
-        }
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(BackgroundLight)
-                .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // کارت آمار
-            item {
-                StatsCard(stats)
-            }
 
-            // مالکان عمده
-            if (grouped.majorOwners.isNotEmpty()) {
-                item {
-                    SectionHeader("مالکان عمده", Icons.Default.Star, AbyarBlue, grouped.majorOwners.size)
-                }
-                items(grouped.majorOwners) { major ->
-                    val members = grouped.membersOfMajor[major.id] ?: emptyList()
-                    MajorOwnerCard(
-                        owner = major,
-                        memberCount = members.size,
-                        expanded = expandedMajorId == major.id,
-                        onToggle = {
-                            expandedMajorId = if (expandedMajorId == major.id) null else major.id
-                        },
-                        onDelete = { ownerToDelete = major }
-                    )
-                    if (expandedMajorId == major.id && members.isNotEmpty()) {
-                        members.forEach { member ->
-                            MemberItem(member = member, onDelete = { ownerToDelete = member })
-                        }
+            OutlinedTextField(
+                value = nc,
+                onValueChange = { newValue ->
+                    val converted = com.example.abyar.util.toEnglishDigits(newValue)
+                    if (converted.length <= 10 && converted.all { it.isDigit() }) {
+                        nc = converted
                     }
-                }
+                },
+                label = { Text("کد ملی (10 رقمی) *") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
+            )
+
+            OutlinedTextField(
+                value = share,
+                onValueChange = { share = com.example.abyar.util.toEnglishDigits(it) },
+                label = { Text("سهم ساعتی (ساعت) *") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
+            )
+
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = isOp, onCheckedChange = { isOp = it })
+                Text("این شخص موتوربان است", fontSize = 14.sp)
+            }
+            if (isOp) {
+                WageSelector(
+                    selected = opWageType,
+                    onSelect = { opWageType = it },
+                    amount = opWageAmount,
+                    onAmountChange = { opWageAmount = com.example.abyar.util.toEnglishDigits(it) }
+                )
             }
 
-            // خرده‌مالکان مستقل
-            if (grouped.independentSmallOwners.isNotEmpty()) {
-                item {
-                    SectionHeader(
-                        "خرده‌مالکان مستقل",
-                        Icons.Default.Person,
-                        AbyarTeal,
-                        grouped.independentSmallOwners.size
-                    )
-                }
-                items(grouped.independentSmallOwners) { small ->
-                    SmallOwnerCard(owner = small, onDelete = { ownerToDelete = small })
-                }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = isAb, onCheckedChange = { isAb = it })
+                Text("این شخص آبیار است", fontSize = 14.sp)
+            }
+            if (isAb) {
+                WageSelector(
+                    selected = abWageType,
+                    onSelect = { abWageType = it },
+                    amount = abWageAmount,
+                    onAmountChange = { abWageAmount = com.example.abyar.util.toEnglishDigits(it) }
+                )
             }
 
-            // موتوربان و آبیار
-            if (grouped.operatorsAndAbyars.isNotEmpty()) {
-                item {
-                    SectionHeader(
-                        "موتوربان و آبیار",
-                        Icons.Default.Engineering,
-                        AbyarPurple,
-                        grouped.operatorsAndAbyars.size
-                    )
-                }
-                items(grouped.operatorsAndAbyars) { op ->
-                    OperatorCard(owner = op, onDelete = { ownerToDelete = op })
-                }
-            }
-
-            // اگر خالی بود
-            if (grouped.majorOwners.isEmpty() &&
-                grouped.independentSmallOwners.isEmpty() &&
-                grouped.operatorsAndAbyars.isEmpty()
-            ) {
-                item {
-                    Box(
-                        Modifier.fillMaxWidth().padding(48.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                Icons.Default.Group,
-                                null,
-                                tint = Color.LightGray,
-                                modifier = Modifier.size(72.dp)
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            Text("هنوز مالکی ثبت نشده", fontSize = 16.sp, color = TextSecondary)
-                            Text("با دکمه سبز (+) مالک جدید اضافه کنید", fontSize = 12.sp, color = Color.Gray)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // شیت افزودن مالک
-    if (showAddSheet) {
-        AddOwnerSheet(
-            remainingHours = stats.remainingHours,
-            onDismiss = { showAddSheet = false; vm.clearError() },
-            onSubmit = { name, phone, nc, share, isOp, opWt, opWa, isAb, abWt, abWa ->
-                vm.addOwner(
-                    wellId = wellId,
-                    fullName = name,
-                    phone = phone,
-                    nationalCode = nc,
-                    shareHours = share,
-                    isOperator = isOp,
-                    operatorWageType = opWt,
-                    operatorWageAmount = opWa,
-                    isAbyar = isAb,
-                    abyarWageType = abWt,
-                    abyarWageAmount = abWa
+            // نمایش خطای محلی
+            if (localError.isNotEmpty()) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    showAddSheet = false
-                    vm.loadOwners(wellId)
-                }
-            }
-        )
-    }
-
-    // دیالوگ تایید حذف
-    ownerToDelete?.let { owner ->
-        AlertDialog(
-            onDismissRequest = { ownerToDelete = null },
-            icon = { Icon(Icons.Default.Warning, null, tint = AbyarRed) },
-            title = { Text("حذف مالک", fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    Text("آیا از حذف «${owner.fullName}» مطمئن هستید؟")
-                    Spacer(Modifier.height(8.dp))
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = CardOrangeLight),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text(
-                            "سهم ${owner.shareHours} ساعت ایشان به مجموع ساعت چاه بازمی‌گردد.",
-                            modifier = Modifier.padding(10.dp),
-                            fontSize = 13.sp,
-                            color = AbyarOrange,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                    Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Error, null, tint = AbyarRed, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(localError, color = AbyarRed, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        vm.deleteOwner(owner) {
-                            ownerToDelete = null
-                            vm.loadOwners(wellId)
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = AbyarRed)
-                ) { Text("حذف") }
-            },
-            dismissButton = {
-                TextButton(onClick = { ownerToDelete = null }) { Text("انصراف") }
             }
-        )
+
+            Spacer(Modifier.height(8.dp))
+
+            Button(
+                onClick = {
+                    val phoneError = com.example.abyar.util.phoneErrorMessage(phone)
+                    val ncError = com.example.abyar.util.nationalCodeErrorMessage(nc)
+                    val shareValue = share.toDoubleOrNull() ?: 0.0
+
+                    when {
+                        name.isBlank() -> localError = "نام و نام خانوادگی الزامی است"
+                        phoneError != null -> localError = phoneError
+                        ncError != null -> localError = ncError
+                        shareValue <= 0.0 -> localError = "سهم ساعتی باید بیشتر از صفر باشد"
+                        else -> {
+                            localError = ""
+                            onSubmit(
+                                name.trim(), phone.trim(), nc.trim(),
+                                shareValue,
+                                isOp,
+                                if (isOp) opWageType else null,
+                                opWageAmount.toDoubleOrNull() ?: 0.0,
+                                isAb,
+                                if (isAb) abWageType else null,
+                                abWageAmount.toDoubleOrNull() ?: 0.0
+                            )
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AbyarGreen)
+            ) {
+                Icon(Icons.Default.Save, null, tint = Color.White)
+                Spacer(Modifier.width(8.dp))
+                Text("افزودن مالک", fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(24.dp))
+        }
     }
 }
 
