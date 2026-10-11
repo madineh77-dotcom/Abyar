@@ -28,6 +28,7 @@ import com.example.abyar.ui.schedule.ScheduleViewModel
 import com.example.abyar.ui.theme.*
 import com.example.abyar.util.formatPersianDate
 import com.example.abyar.util.formatPersianTime
+import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.TimeZone
 
@@ -134,11 +135,12 @@ fun OperatorDashboardScreen(
             ) {
                 // کارت نوبت بعدی
                 item {
-                    if (nextTurn != null) {
+                    val nt = nextTurn
+                    if (nt != null) {
                         NextTurnCard(
-                            turn = nextTurn!!,
-                            phone = getPhoneFor(nextTurn!!.userId),
-                            onToggle = { vm.toggleTurnStatus(nextTurn!!) { } },
+                            turn = nt,
+                            phone = getPhoneFor(nt.userId),
+                            onToggle = { vm.toggleTurnStatus(nt) { } },
                             onCall = { phone -> callNumber(phone) }
                         )
                     } else {
