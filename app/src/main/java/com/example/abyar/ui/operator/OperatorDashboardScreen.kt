@@ -3,7 +3,6 @@ package com.example.abyar.ui.operator
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,8 +25,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.abyar.data.IrrigationTurn
 import com.example.abyar.ui.schedule.ScheduleViewModel
 import com.example.abyar.ui.theme.*
-import com.example.abyar.util.formatPersianTime
 import com.example.abyar.util.formatPersianDate
+import com.example.abyar.util.formatPersianTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,6 +43,10 @@ fun OperatorDashboardScreen(
 
     LaunchedEffect(wellId) { vm.loadTurns(wellId) }
 
+    // محاسبه آمار (بیرون از Row)
+    val pendingCount = turns.count { it.status == "PENDING" }
+    val completedCount = turns.count { it.status == "COMPLETED" }
+
     // نوبت‌های امروز
     val todayTurns = remember(turns) {
         val now = System.currentTimeMillis()
@@ -59,7 +62,11 @@ fun OperatorDashboardScreen(
             .minByOrNull { it.startTime }
     }
 
-    Column(Modifier.fillMaxSize().background(BackgroundLight)) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(BackgroundLight)
+    ) {
         // هدر گرادیانت
         Box(
             Modifier
@@ -75,8 +82,17 @@ fun OperatorDashboardScreen(
                     }
                     Spacer(Modifier.width(8.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("پنل موتوربان", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        Text(wellName, color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
+                        Text(
+                            "پنل موتوربان",
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            wellName,
+                            color = Color.White.copy(alpha = 0.85f),
+                            fontSize = 12.sp
+                        )
                     }
                     IconButton(onClick = onManageGroups) {
                         Icon(Icons.Default.Groups, null, tint = Color.White)
@@ -91,12 +107,13 @@ fun OperatorDashboardScreen(
                 Spacer(Modifier.height(12.dp))
 
                 // آمار امروز
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    val pendingCount = turns.count { it.status == "PENDING" }
-                    val completedCount = turns.count { it.status == "COMPLETED" }
-                    OpStat("نوبت‌های امروز", "${todayTurns.size}", Color.White)
-                    OpStat("در انتظار", "$pendingCount", Color.White)
-                    OpStat("انجام‌شده", "$completedCount", Color.White)
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    OpStat("نوبت‌های امروز", todayTurns.size.toString(), Color.White)
+                    OpStat("در انتظار", pendingCount.toString(), Color.White)
+                    OpStat("انجام‌شده", completedCount.toString(), Color.White)
                 }
             }
         }
@@ -104,7 +121,9 @@ fun OperatorDashboardScreen(
         // نوبت بعدی
         nextTurn?.let { nt ->
             Card(
-                Modifier.fillMaxWidth().padding(16.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = AbyarOrange.copy(alpha = 0.15f)),
                 elevation = CardDefaults.cardElevation(3.dp)
@@ -113,39 +132,51 @@ fun OperatorDashboardScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.NotificationsActive, null, tint = AbyarOrange)
                         Spacer(Modifier.width(8.dp))
-                        Text("نوبت بعدی", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = AbyarOrange)
+                        Text(
+                            "نوبت بعدی",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = AbyarOrange
+                        )
                     }
                     Spacer(Modifier.height(8.dp))
                     Text(nt.userName, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                     Text(
                         "${formatPersianDate(nt.startTime)} | ساعت ${formatPersianTime(nt.startTime)}",
-                        fontSize = 13.sp, color = TextSecondary
+                        fontSize = 13.sp,
+                        color = TextSecondary
                     )
                     Spacer(Modifier.height(10.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
-                            onClick = {
-                                // تایید و تکمیل نوبت
-                                vm.toggleTurnStatus(nt) { }
-                            },
+                            onClick = { vm.toggleTurnStatus(nt) { } },
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(containerColor = AbyarGreen),
                             shape = RoundedCornerShape(10.dp)
                         ) {
-                            Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Icon(
+                                Icons.Default.Check,
+                                null,
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
                             Spacer(Modifier.width(4.dp))
                             Text("تایید", fontSize = 13.sp)
                         }
                         OutlinedButton(
                             onClick = {
-                                val phone = nt.userName // اینجا باید شماره تماس باشد
+                                val phone = nt.userName
                                 val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))
                                 runCatching { context.startActivity(intent) }
                             },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(10.dp)
                         ) {
-                            Icon(Icons.Default.Phone, null, modifier = Modifier.size(18.dp))
+                            Icon(
+                                Icons.Default.Phone,
+                                null,
+                                modifier = Modifier.size(18.dp)
+                            )
                             Spacer(Modifier.width(4.dp))
                             Text("تماس", fontSize = 13.sp)
                         }
@@ -154,7 +185,7 @@ fun OperatorDashboardScreen(
             }
         }
 
-        // لیست نوبت‌های امروز
+        // عنوان لیست نوبت‌های امروز
         Text(
             "نوبت‌های امروز",
             fontSize = 16.sp,
@@ -165,7 +196,12 @@ fun OperatorDashboardScreen(
         if (todayTurns.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.EventAvailable, null, tint = Color.LightGray, modifier = Modifier.size(72.dp))
+                    Icon(
+                        Icons.Default.EventAvailable,
+                        null,
+                        tint = Color.LightGray,
+                        modifier = Modifier.size(72.dp)
+                    )
                     Spacer(Modifier.height(12.dp))
                     Text("امروز نوبتی وجود ندارد", fontSize = 16.sp, color = TextSecondary)
                 }
@@ -189,4 +225,59 @@ fun OperatorDashboardScreen(
 @Composable
 private fun OpStat(label: String, value: String, color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, fontSize = 22.sp, fontWeight = FontWeight.Bold
+        Text(value, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = color)
+        Text(label, fontSize = 10.sp, color = color.copy(alpha = 0.85f))
+    }
+}
+
+@Composable
+private fun OperatorTurnCard(turn: IrrigationTurn, onToggle: () -> Unit) {
+    val statusColor = when (turn.status) {
+        "COMPLETED" -> AbyarGreen
+        "CANCELLED" -> Color.Gray
+        else -> AbyarOrange
+    }
+    val durationMs = turn.endTime - turn.startTime
+    val durationHours = durationMs / (1000.0 * 60 * 60)
+
+    Card(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Row(
+            Modifier.padding(12.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier
+                    .size(4.dp, 50.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(statusColor)
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(turn.userName, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text(
+                    "${formatPersianTime(turn.startTime)} - ${formatPersianTime(turn.endTime)}",
+                    fontSize = 12.sp,
+                    color = AbyarBlue
+                )
+                Text(
+                    "مدت: ${String.format("%.1f", durationHours)} ساعت",
+                    fontSize = 10.sp,
+                    color = TextSecondary
+                )
+            }
+            IconButton(onClick = onToggle) {
+                Icon(
+                    if (turn.status == "COMPLETED") Icons.Default.Undo else Icons.Default.CheckCircle,
+                    null,
+                    tint = statusColor,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        }
+    }
+}
