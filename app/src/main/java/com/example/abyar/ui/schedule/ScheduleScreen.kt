@@ -1,5 +1,6 @@
 package com.example.abyar.ui.schedule
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -37,6 +38,7 @@ fun ScheduleScreen(
 ) {
     val turns by vm.turns.collectAsState()
     val owners by vm.owners.collectAsState()
+    val summaries by vm.ownerSummaries.collectAsState()
     val stats by vm.stats.collectAsState()
     val error by vm.error.collectAsState()
     val info by vm.info.collectAsState()
@@ -48,13 +50,13 @@ fun ScheduleScreen(
     var actionTurn by remember { mutableStateOf<IrrigationTurn?>(null) }
     var showMoveSheet by remember { mutableStateOf(false) }
     var showSplitSheet by remember { mutableStateOf(false) }
+    var showSummary by remember { mutableStateOf(false) }
 
     LaunchedEffect(wellId) { vm.loadTurns(wellId) }
 
-    // پاک کردن پیام‌ها بعد از ۳ ثانیه
     LaunchedEffect(error, info) {
         if (error.isNotEmpty() || info.isNotEmpty()) {
-            kotlinx.coroutines.delay(3000)
+            kotlinx.coroutines.delay(3500)
             vm.clearMessages()
         }
     }
@@ -79,6 +81,13 @@ fun ScheduleScreen(
                 },
                 actions = {
                     if (turns.isNotEmpty()) {
+                        IconButton(onClick = { showSummary = !showSummary }) {
+                            Icon(
+                                if (showSummary) Icons.Default.Analytics else Icons.Default.PieChart,
+                                null,
+                                tint = Color.White
+                            )
+                        }
                         IconButton(onClick = { showClearDialog = true }) {
                             Icon(Icons.Default.DeleteSweep, null, tint = Color.White)
                         }
@@ -117,6 +126,11 @@ fun ScheduleScreen(
             }
             if (info.isNotEmpty()) {
                 MessageCard(info, AbyarGreen, Icons.Default.CheckCircle)
+            }
+
+            // خلاصه سهم مالکان
+            AnimatedVisibility(visible = showSummary && summaries.isNotEmpty()) {
+                OwnersSummarySection(summaries = summaries)
             }
 
             if (turns.isNotEmpty()) {
@@ -163,24 +177,16 @@ fun ScheduleScreen(
         }
     }
 
-    // Bottom Sheet عملیات روی نوبت
     actionTurn?.let { turn ->
         TurnActionsSheet(
             turn = turn,
             onDismiss = { actionTurn = null },
-            onDelete = {
-                vm.deleteTurn(turn) { actionTurn = null }
-            },
-            onMove = {
-                showMoveSheet = true
-            },
-            onSplit = {
-                showSplitSheet = true
-            }
+            onDelete = { vm.deleteTurn(turn) { actionTurn = null } },
+            onMove = { showMoveSheet = true },
+            onSplit = { showSplitSheet = true }
         )
     }
 
-    // دیالوگ تولید
     if (showGenerateDialog) {
         GenerateDialog(
             hasExisting = turns.isNotEmpty(),
@@ -191,7 +197,6 @@ fun ScheduleScreen(
         )
     }
 
-    // شیت جابجایی
     if (showMoveSheet && actionTurn != null) {
         MoveTurnSheet(
             currentTurn = actionTurn!!,
@@ -206,7 +211,6 @@ fun ScheduleScreen(
         )
     }
 
-    // شیت شکستن
     if (showSplitSheet && actionTurn != null) {
         SplitTurnSheet(
             currentTurn = actionTurn!!,
@@ -226,7 +230,6 @@ fun ScheduleScreen(
         )
     }
 
-    // دیالوگ پاک کردن
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
@@ -246,7 +249,131 @@ fun ScheduleScreen(
     }
 }
 
-// ==================== کامپوننت‌ها ====================
+// ==================== خلاصه سهم مالکان ====================
+
+@Composable
+private fun OwnersSummarySection(summaries: List<OwnerScheduleSummary>) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF3E5F5)),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.PieChart, null, tint = AbyarPurple)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "خلاصه سهم مالکان در برنامه",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = AbyarPurple
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "مقایسه سهم ثبت‌شده در پنل مالکان با مجموع نوبت‌های هر مالک در این برنامه",
+                fontSize = 11.sp,
+                color = TextSecondary
+            )
+            Spacer(Modifier.height(10.dp))
+
+            // هدر جدول
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("مالک", Modifier.weight(1.4f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                Text("سهم", Modifier.weight(0.7f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                Text("در برنامه", Modifier.weight(0.8f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                Text("وضعیت", Modifier.weight(1f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            }
+            HorizontalDivider(Modifier.padding(vertical = 4.dp))
+
+            summaries.forEach { s ->
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        s.userName,
+                        Modifier.weight(1.4f),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    )
+                    Text(
+                        "${s.shareHours}",
+                        Modifier.weight(0.7f),
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+                    Text(
+                        String.format("%.1f", s.scheduledHours),
+                        Modifier.weight(0.8f),
+                        fontSize = 12.sp,
+                        color = AbyarBlue,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Box(Modifier.weight(1f)) {
+                        if (s.isBalanced) {
+                            Surface(
+                                color = CardGreenLight,
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Row(
+                                    Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Check, null, tint = AbyarGreen, modifier = Modifier.size(12.dp))
+                                    Spacer(Modifier.width(3.dp))
+                                    Text("متوازن", fontSize = 10.sp, color = AbyarGreen, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        } else if (s.difference > 0) {
+                            Surface(color = CardOrangeLight, shape = RoundedCornerShape(6.dp)) {
+                                Text(
+                                    "بیشتر: +${String.format("%.1f", s.difference)}",
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                    fontSize = 10.sp,
+                                    color = AbyarOrange,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        } else {
+                            Surface(color = Color(0xFFFFEBEE), shape = RoundedCornerShape(6.dp)) {
+                                Text(
+                                    "کمتر: ${String.format("%.1f", s.difference)}",
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                    fontSize = 10.sp,
+                                    color = AbyarRed,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(Icons.Default.Info, null, tint = AbyarBlue, modifier = Modifier.size(14.dp))
+                Text(
+                    "اگر «در برنامه» از «سهم» بیشتر باشد، یعنی نوبت‌ها اشتباه تولید یا جابجا شده‌اند.",
+                    fontSize = 10.sp,
+                    color = TextSecondary
+                )
+            }
+        }
+    }
+}
+
+// ==================== کامپوننت‌های قبلی ====================
 
 @Composable
 private fun StatsCard(stats: ScheduleStats) {
@@ -345,7 +472,6 @@ private fun TurnCard(
         else -> Triple("در انتظار", AbyarOrange, Icons.Default.Schedule)
     }
 
-    // محاسبه مدت زمان نوبت
     val durationMs = turn.endTime - turn.startTime
     val durationHours = durationMs / (1000.0 * 60 * 60)
     val durationText = if (durationHours < 1) {
@@ -381,16 +507,9 @@ private fun TurnCard(
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(turn.userName, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Text(
-                        "از ${formatPersianDateTime(turn.startTime)}",
-                        fontSize = 11.sp, color = TextSecondary
-                    )
-                    Text(
-                        "تا ${formatPersianDateTime(turn.endTime)}",
-                        fontSize = 11.sp, color = TextSecondary
-                    )
+                    Text("از ${formatPersianDateTime(turn.startTime)}", fontSize = 11.sp, color = TextSecondary)
+                    Text("تا ${formatPersianDateTime(turn.endTime)}", fontSize = 11.sp, color = TextSecondary)
                 }
-                // نشانگر مدت زمان
                 Surface(
                     color = AbyarBlue.copy(alpha = 0.12f),
                     shape = RoundedCornerShape(8.dp)
@@ -431,17 +550,9 @@ private fun TurnCard(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(Modifier.width(4.dp))
-                    Text(
-                        if (turn.status == "COMPLETED") "برگردان" else "تایید",
-                        fontSize = 12.sp
-                    )
+                    Text(if (turn.status == "COMPLETED") "برگردان" else "تایید", fontSize = 12.sp)
                 }
-                Icon(
-                    Icons.Default.MoreVert,
-                    null,
-                    tint = TextSecondary,
-                    modifier = Modifier.size(20.dp)
-                )
+                Icon(Icons.Default.MoreVert, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
             }
         }
     }
@@ -463,15 +574,12 @@ private fun EmptyState() {
             Spacer(Modifier.height(20.dp))
             Text("هنوز برنامه‌ای تولید نشده", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Spacer(Modifier.height(6.dp))
-            Text(
-                "با دکمه سبز پایین، نوبت‌بندی خودکار را انجام دهید",
-                fontSize = 13.sp, color = TextSecondary
-            )
+            Text("با دکمه سبز پایین، نوبت‌بندی خودکار را انجام دهید", fontSize = 13.sp, color = TextSecondary)
         }
     }
 }
 
-// ==================== Bottom Sheet عملیات ====================
+// ==================== Bottom Sheets و Dialogs ====================
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -490,7 +598,6 @@ private fun TurnActionsSheet(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // هدر
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
@@ -513,32 +620,12 @@ private fun TurnActionsSheet(
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
-            // گزینه‌ها
-            ActionItem(
-                icon = Icons.Default.SwapHoriz,
-                color = AbyarOrange,
-                title = "جابجایی نوبت",
-                subtitle = "انتقال این نوبت به مالک دیگر (زمان ثابت)",
-                onClick = {
-                    onMove()
-                }
-            )
-            ActionItem(
-                icon = Icons.Default.ContentCut,
-                color = AbyarPurple,
-                title = "شکستن نوبت",
-                subtitle = "تقسیم این نوبت به دو یا چند بخش",
-                onClick = {
-                    onSplit()
-                }
-            )
-            ActionItem(
-                icon = Icons.Default.Delete,
-                color = AbyarRed,
-                title = "حذف نوبت",
-                subtitle = "حذف کامل این نوبت از برنامه",
-                onClick = onDelete
-            )
+            ActionItem(Icons.Default.SwapHoriz, AbyarOrange, "جابجایی نوبت",
+                "انتقال این نوبت به مالک دیگر (زمان ثابت)", onMove)
+            ActionItem(Icons.Default.ContentCut, AbyarPurple, "شکستن نوبت",
+                "تقسیم این نوبت به دو یا چند بخش (مجموع ثابت)", onSplit)
+            ActionItem(Icons.Default.Delete, AbyarRed, "حذف نوبت",
+                "حذف کامل این نوبت از برنامه", onDelete)
 
             Spacer(Modifier.height(20.dp))
         }
@@ -582,8 +669,6 @@ private fun ActionItem(
     }
 }
 
-// ==================== شیت جابجایی ====================
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MoveTurnSheet(
@@ -601,15 +686,11 @@ private fun MoveTurnSheet(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text("جابجایی نوبت", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AbyarBlueDark)
-            Text(
-                "نوبت فعلی: ${currentTurn.userName}",
-                fontSize = 13.sp, color = TextSecondary
-            )
+            Text("نوبت فعلی: ${currentTurn.userName}", fontSize = 13.sp, color = TextSecondary)
             Text(
                 "زمان: ${formatPersianDateTime(currentTurn.startTime)} تا ${formatPersianDateTime(currentTurn.endTime)}",
                 fontSize = 11.sp, color = TextSecondary
             )
-
             Spacer(Modifier.height(10.dp))
             Text("انتقال نوبت به:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
 
@@ -642,10 +723,7 @@ private fun MoveTurnSheet(
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(owner.fullName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                Text(
-                                    "سهم: ${owner.shareHours} ساعت",
-                                    fontSize = 11.sp, color = AbyarGreen
-                                )
+                                Text("سهم: ${owner.shareHours} ساعت", fontSize = 11.sp, color = AbyarGreen)
                             }
                             Icon(Icons.Default.ChevronLeft, null, tint = AbyarBlue)
                         }
@@ -657,8 +735,6 @@ private fun MoveTurnSheet(
     }
 }
 
-// ==================== شیت شکستن ====================
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SplitTurnSheet(
@@ -667,7 +743,7 @@ private fun SplitTurnSheet(
     onSplitTwo: (Double) -> Unit,
     onSplitEqual: (Int) -> Unit
 ) {
-    var mode by remember { mutableStateOf("TWO") } // TWO or EQUAL
+    var mode by remember { mutableStateOf("TWO") }
     var splitHours by remember { mutableStateOf("") }
     var partsCount by remember { mutableStateOf("2") }
 
@@ -688,9 +764,23 @@ private fun SplitTurnSheet(
                 fontSize = 13.sp, color = TextSecondary
             )
 
-            Spacer(Modifier.height(8.dp))
+            // هشدار مهم
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBlueLight),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Info, null, tint = AbyarBlue, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "مجموع بخش‌ها پس از شکستن، دقیقاً برابر با ${String.format("%.1f", totalHours)} ساعت خواهد بود.",
+                        fontSize = 11.sp, color = AbyarBlue, fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
 
-            // انتخاب حالت
+            Spacer(Modifier.height(4.dp))
+
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(
                     selected = mode == "TWO",
@@ -715,10 +805,7 @@ private fun SplitTurnSheet(
             Spacer(Modifier.height(8.dp))
 
             if (mode == "TWO") {
-                Text(
-                    "بخش اول چند ساعت باشد؟",
-                    fontWeight = FontWeight.Bold, fontSize = 14.sp
-                )
+                Text("بخش اول چند ساعت باشد؟", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 OutlinedTextField(
                     value = splitHours,
                     onValueChange = { splitHours = it },
@@ -728,23 +815,9 @@ private fun SplitTurnSheet(
                     shape = RoundedCornerShape(12.dp)
                 )
                 Text(
-                    "حداکثر مقدار: ${String.format("%.1f", totalHours)} ساعت",
+                    "حداکثر مقدار: ${String.format("%.1f", totalHours)} ساعت (بخش دوم: ${String.format("%.1f", totalHours - (splitHours.toDoubleOrNull() ?: 0.0))} ساعت)",
                     fontSize = 11.sp, color = TextSecondary
                 )
-
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = CardBlueLight),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Info, null, tint = AbyarBlue, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "بخش اول از ساعت شروع، به اندازه مقدار وارد شده طول می‌کشد. بخش دوم، باقیمانده را می‌گیرد.",
-                            fontSize = 11.sp, color = AbyarBlue
-                        )
-                    }
-                }
 
                 Spacer(Modifier.height(8.dp))
                 Button(
@@ -762,20 +835,17 @@ private fun SplitTurnSheet(
                     Text("شکستن به دو بخش", fontWeight = FontWeight.Bold)
                 }
             } else {
-                Text(
-                    "تعداد بخش‌های مساوی:",
-                    fontWeight = FontWeight.Bold, fontSize = 14.sp
-                )
+                Text("تعداد بخش‌های مساوی:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 OutlinedTextField(
                     value = partsCount,
                     onValueChange = { if (it.length <= 2) partsCount = it },
-                    label = { Text("مثلاً 3 (یعنی 3 بخش مساوی)") },
+                    label = { Text("مثلاً 3") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 )
                 Text(
-                    "هر بخش حدود ${String.format("%.1f", totalHours / (partsCount.toIntOrNull() ?: 2))} ساعت می‌شود",
+                    "هر بخش حدود ${String.format("%.1f", totalHours / (partsCount.toIntOrNull() ?: 2))} ساعت می‌شود (مجموع: ${String.format("%.1f", totalHours)} ساعت)",
                     fontSize = 11.sp, color = TextSecondary
                 )
 
@@ -801,8 +871,6 @@ private fun SplitTurnSheet(
     }
 }
 
-// ==================== دیالوگ تولید ====================
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun GenerateDialog(
@@ -819,10 +887,8 @@ private fun GenerateDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.AutoMode, null, tint = AbyarGreen) },
         title = {
-            Text(
-                if (hasExisting) "تولید مجدد برنامه" else "تولید برنامه آبیاری",
-                fontWeight = FontWeight.Bold
-            )
+            Text(if (hasExisting) "تولید مجدد برنامه" else "تولید برنامه آبیاری",
+                fontWeight = FontWeight.Bold)
         },
         text = {
             Column {
@@ -834,10 +900,8 @@ private fun GenerateDialog(
                         Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Warning, null, tint = AbyarOrange, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text(
-                                "برنامه قبلی پاک و برنامه جدید ساخته می‌شود.",
-                                fontSize = 12.sp, color = AbyarOrange, fontWeight = FontWeight.SemiBold
-                            )
+                            Text("برنامه قبلی پاک و برنامه جدید ساخته می‌شود.",
+                                fontSize = 12.sp, color = AbyarOrange, fontWeight = FontWeight.SemiBold)
                         }
                     }
                     Spacer(Modifier.height(12.dp))
@@ -845,39 +909,25 @@ private fun GenerateDialog(
                 Text("تاریخ شروع مدار را وارد کنید:", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = day,
-                        onValueChange = { if (it.length <= 2) day = it },
+                    OutlinedTextField(value = day, onValueChange = { if (it.length <= 2) day = it },
                         label = { Text("روز", fontSize = 11.sp) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    OutlinedTextField(
-                        value = month,
-                        onValueChange = { if (it.length <= 2) month = it },
+                        modifier = Modifier.weight(1f), singleLine = true,
+                        shape = RoundedCornerShape(12.dp))
+                    OutlinedTextField(value = month, onValueChange = { if (it.length <= 2) month = it },
                         label = { Text("ماه", fontSize = 11.sp) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    OutlinedTextField(
-                        value = year,
-                        onValueChange = { if (it.length <= 4) year = it },
+                        modifier = Modifier.weight(1f), singleLine = true,
+                        shape = RoundedCornerShape(12.dp))
+                    OutlinedTextField(value = year, onValueChange = { if (it.length <= 4) year = it },
                         label = { Text("سال", fontSize = 11.sp) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1.3f),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp)
-                    )
+                        modifier = Modifier.weight(1.3f), singleLine = true,
+                        shape = RoundedCornerShape(12.dp))
                 }
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    "مثال: امروز = ${today.first}/${today.second}/${today.third}",
-                    fontSize = 11.sp, color = TextSecondary
-                )
+                Text("مثال: امروز = ${today.first}/${today.second}/${today.third}",
+                    fontSize = 11.sp, color = TextSecondary)
             }
         },
         confirmButton = {
