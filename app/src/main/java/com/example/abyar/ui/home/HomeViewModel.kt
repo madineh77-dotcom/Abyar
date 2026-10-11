@@ -27,33 +27,37 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser
 
-    // Job برای ردیابی collect قبلی (تا در تعویض چاه، جمع‌آوری قبلی لغو شود)
+    // وضعیت بارگذاری چاه
+    private val _wellNotFound = MutableStateFlow(false)
+    val wellNotFound: StateFlow<Boolean> = _wellNotFound
+
     private var loadJob: Job? = null
 
     fun loadWell(wellId: String, nationalCode: String) {
-        // لغو کامل عملیات قبلی قبل از شروع عملیات جدید
         loadJob?.cancel()
 
         loadJob = viewModelScope.launch {
-            // پاک کردن داده‌های قبلی برای جلوگیری از نمایش داده‌های چاه قدیم
+            // ریست کامل
             _well.value = null
             _nextTurn.value = null
             _currentUser.value = null
+            _wellNotFound.value = false
 
             val w = wellDao.getWellById(wellId)
             if (w == null) {
+                // چاه واقعاً وجود ندارد
+                _wellNotFound.value = true
                 return@launch
             }
+
             _well.value = w
 
             val u = userDao.getUserByNationalCode(w.id, nationalCode)
-            if (u == null) {
-                return@launch
-            }
-            _currentUser.value = u
-
-            turnDao.getNextPendingTurn(w.id, u.id).collect { turn ->
-                _nextTurn.value = turn
+            if (u != null) {
+                _currentUser.value = u
+                turnDao.getNextPendingTurn(w.id, u.id).collect { turn ->
+                    _nextTurn.value = turn
+                }
             }
         }
     }
@@ -64,5 +68,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _well.value = null
         _nextTurn.value = null
         _currentUser.value = null
+        _wellNotFound.value = false
     }
 }
