@@ -1,5 +1,6 @@
 package com.example.abyar.ui.owners
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,7 +18,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -39,13 +39,23 @@ fun OwnersScreen(
     val grouped by vm.grouped.collectAsState()
     val error by vm.error.collectAsState()
 
+    val snackbarHostState = remember { SnackbarHostState() }
+
     var showAddSheet by remember { mutableStateOf(false) }
     var ownerToDelete by remember { mutableStateOf<User?>(null) }
     var expandedMajorId by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(wellId) { vm.loadOwners(wellId) }
 
+    LaunchedEffect(error) {
+        if (error.isNotEmpty()) {
+            snackbarHostState.showSnackbar(error, duration = SnackbarDuration.Short)
+            vm.clearError()
+        }
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("مدیریت مالکان", color = Color.White, fontWeight = FontWeight.Bold) },
@@ -74,7 +84,7 @@ fun OwnersScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // آمار کلی
+            // کارت آمار
             item {
                 StatsCard(stats)
             }
@@ -164,16 +174,14 @@ fun OwnersScreen(
     if (showAddSheet) {
         AddOwnerSheet(
             remainingHours = stats.remainingHours,
-            error = error,
             onDismiss = { showAddSheet = false; vm.clearError() },
-            onSubmit = { name, phone, nc, share, isMajor, isOp, opWt, opWa, isAb, abWt, abWa ->
+            onSubmit = { name, phone, nc, share, isOp, opWt, opWa, isAb, abWt, abWa ->
                 vm.addOwner(
                     wellId = wellId,
                     fullName = name,
                     phone = phone,
                     nationalCode = nc,
                     shareHours = share,
-                    roleIsMajor = isMajor,
                     isOperator = isOp,
                     operatorWageType = opWt,
                     operatorWageAmount = opWa,
@@ -254,7 +262,10 @@ private fun StatsCard(stats: OwnersStats) {
             }
             Spacer(Modifier.height(8.dp))
             LinearProgressIndicator(
-                progress = { if (stats.totalHours > 0) (stats.allocatedHours / stats.totalHours).toFloat() else 0f },
+                progress = {
+                    if (stats.totalHours > 0) (stats.allocatedHours / stats.totalHours).toFloat()
+                    else 0f
+                },
                 modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
                 color = AbyarGreen,
                 trackColor = Color(0xFFE0E0E0)
@@ -271,10 +282,7 @@ private fun StatsCard(stats: OwnersStats) {
 
 @Composable
 private fun StatBox(label: String, value: String, color: Color, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(label, fontSize = 11.sp, color = TextSecondary)
         Spacer(Modifier.height(2.dp))
         Text(value, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = color)
@@ -282,7 +290,12 @@ private fun StatBox(label: String, value: String, color: Color, modifier: Modifi
 }
 
 @Composable
-private fun SectionHeader(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, color: Color, count: Int) {
+private fun SectionHeader(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    color: Color,
+    count: Int
+) {
     Row(
         modifier = Modifier.padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -398,7 +411,12 @@ private fun SmallOwnerCard(owner: User, onDelete: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text(owner.fullName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(owner.phone, fontSize = 11.sp, color = TextSecondary)
-                Text("${owner.shareHours} ساعت", fontSize = 12.sp, color = AbyarGreen, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "${owner.shareHours} ساعت",
+                    fontSize = 12.sp,
+                    color = AbyarGreen,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, null, tint = AbyarRed)
@@ -470,10 +488,9 @@ private fun wageDescription(type: WageType?, amount: Double): String = when (typ
 @Composable
 private fun AddOwnerSheet(
     remainingHours: Double,
-    error: String,
     onDismiss: () -> Unit,
     onSubmit: (
-        name: String, phone: String, nc: String, share: Double, isMajor: Boolean,
+        name: String, phone: String, nc: String, share: Double,
         isOp: Boolean, opWt: WageType?, opWa: Double,
         isAb: Boolean, abWt: WageType?, abWa: Double
     ) -> Unit
@@ -482,7 +499,6 @@ private fun AddOwnerSheet(
     var phone by remember { mutableStateOf("") }
     var nc by remember { mutableStateOf("") }
     var share by remember { mutableStateOf("") }
-    var isMajor by remember { mutableStateOf(false) }
     var isOp by remember { mutableStateOf(false) }
     var isAb by remember { mutableStateOf(false) }
     var opWageType by remember { mutableStateOf(WageType.CASH) }
@@ -500,49 +516,46 @@ private fun AddOwnerSheet(
         ) {
             Text("افزودن مالک جدید", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AbyarBlueDark)
             Text(
-                "باقیمانده ساعت قابل تخصیص: ${remainingHours} ساعت",
+                "باقیمانده ساعت قابل تخصیص: $remainingHours ساعت",
                 fontSize = 13.sp,
                 color = AbyarOrange,
                 fontWeight = FontWeight.SemiBold
             )
 
-            OutlinedTextField(name, { name = it }, label = { Text("نام و نام خانوادگی *") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(
-                phone, { phone = it }, label = { Text("شماره تماس *") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                modifier = Modifier.fillMaxWidth()
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("نام و نام خانوادگی *") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
             )
             OutlinedTextField(
-                nc, { if (it.length <= 10) nc = it },
+                value = phone,
+                onValueChange = { phone = it },
+                label = { Text("شماره تماس *") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            )
+            OutlinedTextField(
+                value = nc,
+                onValueChange = { newValue -> if (newValue.length <= 10) nc = newValue },
                 label = { Text("کد ملی (۱۰ رقمی) *") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
             )
             OutlinedTextField(
-                share, { share = it },
+                value = share,
+                onValueChange = { share = it },
                 label = { Text("سهم ساعتی (ساعت) *") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
             )
-
-            // انتخاب نقش
-            Text("نقش مالک:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = !isMajor,
-                    onClick = { isMajor = false },
-                    label = { Text("خرده‌مالک (≤ ۵ ساعت)") }
-                )
-                FilterChip(
-                    selected = isMajor,
-                    onClick = { isMajor = true },
-                    label = { Text("مالک عمده (> ۵ ساعت)") }
-                )
-            }
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
-            // موتوربان
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = isOp, onCheckedChange = { isOp = it })
                 Text("این شخص موتوربان است", fontSize = 14.sp)
@@ -556,7 +569,6 @@ private fun AddOwnerSheet(
                 )
             }
 
-            // آبیار
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = isAb, onCheckedChange = { isAb = it })
                 Text("این شخص آبیار است", fontSize = 14.sp)
@@ -570,27 +582,19 @@ private fun AddOwnerSheet(
                 )
             }
 
-            if (error.isNotEmpty()) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Error, null, tint = AbyarRed, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(error, color = AbyarRed, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
+            Spacer(Modifier.height(8.dp))
 
             Button(
                 onClick = {
                     onSubmit(
                         name, phone, nc,
                         share.toDoubleOrNull() ?: 0.0,
-                        isMajor,
-                        isOp, if (isOp) opWageType else null, opWageAmount.toDoubleOrNull() ?: 0.0,
-                        isAb, if (isAb) abWageType else null, abWageAmount.toDoubleOrNull() ?: 0.0
+                        isOp,
+                        if (isOp) opWageType else null,
+                        opWageAmount.toDoubleOrNull() ?: 0.0,
+                        isAb,
+                        if (isAb) abWageType else null,
+                        abWageAmount.toDoubleOrNull() ?: 0.0
                     )
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
@@ -599,7 +603,7 @@ private fun AddOwnerSheet(
             ) {
                 Icon(Icons.Default.Save, null, tint = Color.White)
                 Spacer(Modifier.width(8.dp))
-                Text("افزودن", fontWeight = FontWeight.Bold)
+                Text("افزودن مالک", fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(24.dp))
         }
@@ -645,7 +649,8 @@ private fun WageSelector(
                 )
             },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
         )
     }
 }
