@@ -18,6 +18,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.abyar.ui.theme.*
+import com.example.abyar.util.nationalCodeErrorMessage
+import com.example.abyar.util.phoneErrorMessage
+import com.example.abyar.util.toEnglishDigits
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -26,7 +29,7 @@ fun ProfileEditScreen(
     initialPhone: String,
     initialNationalCode: String,
     onSave: (name: String, phone: String, nationalCode: String) -> Unit,
-    onBack: () -> Unit
+    onBack: (() -> Unit)? = null
 ) {
     var name by remember { mutableStateOf(initialName) }
     var phone by remember { mutableStateOf(initialPhone) }
@@ -38,8 +41,10 @@ fun ProfileEditScreen(
             TopAppBar(
                 title = { Text("ویرایش پروفایل", color = Color.White, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, null, tint = Color.White)
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.Default.ArrowBack, null, tint = Color.White)
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = AbyarBlueDark)
@@ -54,7 +59,6 @@ fun ProfileEditScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // کارت آواتار
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
@@ -88,7 +92,6 @@ fun ProfileEditScreen(
                 }
             }
 
-            // فرم ویرایش
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
@@ -114,12 +117,19 @@ fun ProfileEditScreen(
 
                     OutlinedTextField(
                         value = phone,
-                        onValueChange = { phone = it },
-                        label = { Text("شماره تماس") },
+                        onValueChange = { newValue ->
+                            // تبدیل اعداد فارسی به انگلیسی + محدودیت 11 رقم
+                            val converted = toEnglishDigits(newValue)
+                            if (converted.length <= 11 && converted.all { it.isDigit() || it == ' ' }) {
+                                phone = converted
+                            }
+                        },
+                        label = { Text("شماره تماس (11 رقمی، شروع با 0)") },
                         leadingIcon = { Icon(Icons.Default.Phone, null, tint = AbyarGreen) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp),
+                        singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = AbyarGreen,
                             focusedLabelColor = AbyarGreen
@@ -128,12 +138,18 @@ fun ProfileEditScreen(
 
                     OutlinedTextField(
                         value = nationalCode,
-                        onValueChange = { nationalCode = it },
-                        label = { Text("کد ملی (۱۰ رقمی)") },
+                        onValueChange = { newValue ->
+                            val converted = toEnglishDigits(newValue)
+                            if (converted.length <= 10 && converted.all { it.isDigit() }) {
+                                nationalCode = converted
+                            }
+                        },
+                        label = { Text("کد ملی (10 رقمی)") },
                         leadingIcon = { Icon(Icons.Default.Badge, null, tint = AbyarOrange) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp),
+                        singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = AbyarOrange,
                             focusedLabelColor = AbyarOrange
@@ -141,28 +157,34 @@ fun ProfileEditScreen(
                     )
 
                     if (showError.isNotEmpty()) {
-                        Text(
-                            showError,
-                            color = AbyarRed,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Error, null, tint = AbyarRed, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(showError, color = AbyarRed, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
             }
 
             Spacer(Modifier.height(8.dp))
 
-            // دکمه ذخیره
             Button(
                 onClick = {
+                    val phoneError = phoneErrorMessage(phone)
+                    val ncError = nationalCodeErrorMessage(nationalCode)
                     when {
                         name.isBlank() -> showError = "نام و نام خانوادگی الزامی است"
-                        phone.length < 11 -> showError = "شماره تماس باید ۱۱ رقم باشد"
-                        nationalCode.length != 10 -> showError = "کد ملی باید ۱۰ رقم باشد"
+                        phoneError != null -> showError = phoneError
+                        ncError != null -> showError = ncError
                         else -> {
                             showError = ""
-                            onSave(name, phone, nationalCode)
+                            onSave(name.trim(), phone.trim(), nationalCode.trim())
                         }
                     }
                 },
