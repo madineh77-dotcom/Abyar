@@ -20,6 +20,20 @@ data class ScheduleStats(
     val pendingCount: Int
 )
 
+/**
+ * خلاصه سهم هر مالک در برنامه
+ */
+data class OwnerScheduleSummary(
+    val userId: String,
+    val userName: String,
+    val shareHours: Double,
+    val scheduledHours: Double,
+    val turnsCount: Int
+) {
+    val difference: Double get() = scheduledHours - shareHours
+    val isBalanced: Boolean get() = kotlin.math.abs(difference) < 0.1
+}
+
 class ScheduleViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
     private val turnDao = db.turnDao()
@@ -31,6 +45,9 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
 
     private val _owners = MutableStateFlow<List<User>>(emptyList())
     val owners: StateFlow<List<User>> = _owners
+
+    private val _ownerSummaries = MutableStateFlow<List<OwnerScheduleSummary>>(emptyList())
+    val ownerSummaries: StateFlow<List<OwnerScheduleSummary>> = _ownerSummaries
 
     private val _stats = MutableStateFlow(ScheduleStats(0, 0, null, null, 0, 0, 0))
     val stats: StateFlow<ScheduleStats> = _stats
@@ -46,9 +63,9 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
     fun loadTurns(wellId: String) {
         viewModelScope.launch {
             val well = wellDao.getWellById(wellId) ?: return@launch
-            // بارگذاری لیست مالکان برای پنل جابجایی
-            _owners.value = userDao.getUsersByWellSync(wellId)
+            val allOwners = userDao.getUsersByWellSync(wellId)
                 .filter { it.shareHours > 0.0 }
+            _owners.value = allOwners
 
             turnDao.getTurnsByWell(wellId).collect { list ->
                 _turns.value = list
@@ -64,6 +81,21 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
                     completedCount = completed,
                     pendingCount = pending
                 )
+
+                // محاسبه خلاصه هر مالک
+                val summaries = allOwners.map { owner ->
+                    val userTurns = list.filter { it.userId == owner.id }
+                    val totalMs = userTurns.sumOf { it.endTime - it.startTime }
+                    val totalHours = totalMs / (1000.0 * 60 * 60)
+                    OwnerScheduleSummary(
+                        userId = owner.id,
+                        userName = owner.fullName,
+                        shareHours = owner.shareHours,
+                        scheduledHours = totalHours,
+                        turnsCount = userTurns.size
+                    )
+                }
+                _ownerSummaries.value = summaries
             }
         }
     }
@@ -135,11 +167,8 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    // ============ قابلیت جدید ۱: جابجایی نوبت ============
+    // ============ جابجایی نوبت ============
 
-    /**
-     * نوبت فعلی را به کاربر دیگری منتقل می‌کند (زمان ثابت می‌ماند)
-     */
     fun moveTurnToUser(
         turn: IrrigationTurn,
         newUserId: String,
@@ -161,11 +190,12 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    // ============ قابلیت جدید ۲: شکستن نوبت ============
+    // ============ شکستن نوبت ============
 
     /**
-     * شکستن نوبت به دو بخش با نقطه دلخواه (ساعت)
-     * @param splitAfterHours تعداد ساعتی که بخش اول طول می‌کشد
+     * شکستن نوبت به دو بخش با نقطه دلخواه
+     * اعتبارسنجی: مجموع دو بخش = زمان نوبت اصلی (تضمین ریاضی)
+     * و همچنین مجموع ساعات مالک بعد از شکستن، از سهمش بیشتر نمی‌شود.
      */
     fun splitTurnIntoTwo(
         turn: IrrigationTurn,
@@ -178,6 +208,19 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
 
             if (splitAfterHours <= 0 || splitAfterHours >= totalHours) {
                 _error.value = "زمان شکستن باید بین ۰ و ${String.format("%.1f", totalHours)} ساعت باشد"
+                return@launch
+            }
+
+            // اعتبارسنجی: مجموع نوبت‌های این مالک از سهمش بیشتر نشود
+            val shareHours = _owners.value.find { it.id == turn.userId }?.shareHours ?: 0.0
+            val currentTotalHours = _turns.value
+                .filter { it.userId == turn.userId }
+                .sumOf { (it.endTime - it.startTime) / (1000.0 * 60 * 60) }
+
+            // این نوبت جزء همان مجموع است و شکستن آن مجموع را تغییر نمی‌دهد
+            // پس مجموع نهایی = currentTotalHours (بدون تغییر)
+            if (currentTotalHours > shareHours + 0.1) {
+                _error.value = "مجموع نوبت‌های این مالک (${String.format("%.1f", currentTotalHours)} ساعت) از سهمش (${shareHours} ساعت) بیشتر است"
                 return@launch
             }
 
@@ -197,7 +240,7 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
 
             turnDao.deleteTurn(turn.id)
             turnDao.insertTurns(listOf(firstTurn, secondTurn))
-            _info.value = "نوبت به دو بخش شکسته شد"
+            _info.value = "نوبت به دو بخش شکسته شد (مجموع ثابت: ${String.format("%.1f", totalHours)} ساعت)"
             onSuccess()
         }
     }
@@ -219,6 +262,17 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
             val totalMs = turn.endTime - turn.startTime
             val partMs = totalMs / partsCount
 
+            // اعتبارسنجی مشابه
+            val shareHours = _owners.value.find { it.id == turn.userId }?.shareHours ?: 0.0
+            val currentTotalHours = _turns.value
+                .filter { it.userId == turn.userId }
+                .sumOf { (it.endTime - it.startTime) / (1000.0 * 60 * 60) }
+
+            if (currentTotalHours > shareHours + 0.1) {
+                _error.value = "مجموع نوبت‌های این مالک از سهمش بیشتر است"
+                return@launch
+            }
+
             turnDao.deleteTurn(turn.id)
             val newTurns = (0 until partsCount).map { i ->
                 turn.copy(
@@ -230,7 +284,7 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
                 )
             }
             turnDao.insertTurns(newTurns)
-            _info.value = "نوبت به $partsCount بخش مساوی شکسته شد"
+            _info.value = "نوبت به $partsCount بخش مساوی شکسته شد (مجموع ثابت: ${String.format("%.1f", (totalMs / (1000.0 * 60 * 60)))} ساعت)"
             onSuccess()
         }
     }
