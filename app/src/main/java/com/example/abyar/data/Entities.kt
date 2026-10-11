@@ -5,17 +5,36 @@ import androidx.room.PrimaryKey
 
 enum class WageType { CASH, FROM_TOTAL, FROM_OWN_SHARE }
 
+/**
+ * چاه کشاورزی
+ */
 @Entity(tableName = "wells")
 data class Well(
     @PrimaryKey val id: String,
     val code: String,               // کد ۸ رقمی یکتای چاه
     val name: String,
     val location: String? = null,
-    val totalHours: Double,         // کل ساعت آب (مثلاً 240.0)
+    val totalHours: Double,         // کل ساعت آب
     val cycleDurationDays: Int,     // مدت مدار (روز)
     val createdAt: Long = System.currentTimeMillis()
 )
 
+/**
+ * گروه مالکان (زیر یک چاه)
+ * هر گروه یک سرگروه دارد و چند عضو
+ */
+@Entity(tableName = "owner_groups")
+data class OwnerGroup(
+    @PrimaryKey val id: String,
+    val wellId: String,
+    val name: String,               // نام گروه (مثلاً «گروه آقای احمدی»)
+    val leaderId: String,           // شناسه سرگروه (کلید خارجی به User.id)
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+/**
+ * کاربر (مالک، سرگروه، موتوربان، آبیار، مدیر)
+ */
 @Entity(tableName = "users")
 data class User(
     @PrimaryKey val id: String,
@@ -30,10 +49,9 @@ data class User(
     val operatorWageAmount: Double = 0.0,
     val abyarWageType: WageType? = null,
     val abyarWageAmount: Double = 0.0,
-    val groupLeaderId: String? = null,
+    val groupId: String? = null,     // شناسه گروه (اگر در گروهی است)
     val createdAt: Long = System.currentTimeMillis()
 ) {
-    // نقش خودکار بر اساس سهم
     val roleLabel: String
         get() = when {
             shareHours > 5.0 -> "مالک عمده"
@@ -44,6 +62,9 @@ data class User(
         }
 }
 
+/**
+ * نوبت آبیاری
+ */
 @Entity(tableName = "irrigation_turns")
 data class IrrigationTurn(
     @PrimaryKey val id: String,
@@ -52,14 +73,17 @@ data class IrrigationTurn(
     val userName: String,
     val startTime: Long,
     val endTime: Long,
-    val status: String
+    val status: String              // PENDING, COMPLETED, CANCELLED
 )
 
+/**
+ * تراکنش مالی
+ */
 @Entity(tableName = "transactions")
 data class Transaction(
     @PrimaryKey val id: String,
     val wellId: String,
-    val type: String,       // INCOME یا EXPENSE
+    val type: String,               // INCOME or EXPENSE
     val category: String,
     val amount: Long,
     val date: Long,
@@ -67,12 +91,16 @@ data class Transaction(
     val relatedUserId: String? = null
 )
 
-@Entity(tableName = "notification_groups")
-data class NotificationGroup(
+/**
+ * لاگ اطلاع‌رسانی (ثبت هر پیامک ارسالی)
+ */
+@Entity(tableName = "notification_logs")
+data class NotificationLog(
     @PrimaryKey val id: String,
     val wellId: String,
-    val name: String,
-    val leaderId: String,
-    val memberIds: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val senderId: String,           // چه کسی فرستاد
+    val targetType: String,         // ALL_LEADERS, ONE_GROUP, ONE_USER, ALL_USERS
+    val targetId: String?,          // شناسه گروه یا کاربر (اگر ONE_GROUP یا ONE_USER)
+    val text: String,
+    val sentAt: Long = System.currentTimeMillis()
 )
