@@ -2,7 +2,6 @@ package com.example.abyar
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -11,7 +10,6 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.abyar.ui.common.ComingSoonScreen
 import com.example.abyar.ui.home.HomeScreen
@@ -62,11 +60,11 @@ class MainActivity : ComponentActivity() {
                     val well by homeVm.well.collectAsState()
                     val nextTurn by homeVm.nextTurn.collectAsState()
                     val currentUser by homeVm.currentUser.collectAsState()
+                    val wellNotFound by homeVm.wellNotFound.collectAsState()
 
-                    // اگر چاه فعال حذف شده باشد، آن را پاک کن
-                    LaunchedEffect(well, currentWellId) {
-                        if (currentWellId != null && well == null) {
-                            // چاه وجود ندارد، پاکش کن
+                    // اگر چاه واقعاً وجود ندارد (بعد از بارگذاری)، آن را پاک کن
+                    LaunchedEffect(wellNotFound, currentWellId) {
+                        if (wellNotFound && currentWellId != null) {
                             userPrefs.currentWellId = null
                             currentWellId = null
                         }
@@ -81,14 +79,6 @@ class MainActivity : ComponentActivity() {
                         if (nt == null) "" else "${formatPersianDate(nt.endTime)} - ${formatPersianTime(nt.endTime)}"
                     }
                     val hasTurn = remember(nextTurn) { nextTurn != null }
-
-                    // --------- تعیین نقش کاربر و صفحه پیش‌فرض ---------
-                    val isOperator = currentUser?.isOperator == true
-                    val isAbyar = currentUser?.isAbyar == true
-                    val userShare = currentUser?.shareHours ?: 0.0
-
-                    // اگر چاه فعال دارد و کاربر موتوربان است، وارد داشبورد موتوربان شود
-                    // (فقط یکبار در هر تعویض چاه)
 
                     when {
                         showOnboarding -> {
@@ -140,7 +130,7 @@ class MainActivity : ComponentActivity() {
                                 startTurnText = startText,
                                 endTurnText = endText,
                                 hasTurn = hasTurn,
-                                userShareHours = userShare,
+                                userShareHours = currentUser?.shareHours ?: 0.0,
                                 onEditProfile = { currentScreen = "profile" },
                                 onSwitchWell = { currentScreen = "wells" },
                                 onPanelClick = { route ->
