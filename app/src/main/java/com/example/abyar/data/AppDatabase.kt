@@ -8,20 +8,22 @@ import androidx.room.RoomDatabase
 @Database(
     entities = [
         Well::class,
+        OwnerGroup::class,
         User::class,
         IrrigationTurn::class,
         Transaction::class,
-        NotificationGroup::class
+        NotificationLog::class
     ],
-    version = 3,   // نسخه جدید (چون ساختار عوض شد)
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun wellDao(): WellDao
+    abstract fun groupDao(): GroupDao
     abstract fun userDao(): UserDao
     abstract fun turnDao(): TurnDao
     abstract fun transactionDao(): TransactionDao
-    abstract fun groupDao(): GroupDao
+    abstract fun notificationDao(): NotificationDao
 
     companion object {
         @Volatile
