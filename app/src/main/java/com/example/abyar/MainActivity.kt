@@ -2,18 +2,22 @@ package com.example.abyar
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.abyar.ui.common.ComingSoonScreen
 import com.example.abyar.ui.home.HomeScreen
 import com.example.abyar.ui.home.HomeViewModel
 import com.example.abyar.ui.onboarding.OnboardingScreen
+import com.example.abyar.ui.operator.OperatorDashboardScreen
 import com.example.abyar.ui.owners.OwnersScreen
 import com.example.abyar.ui.profile.ProfileEditScreen
 import com.example.abyar.ui.schedule.ScheduleScreen
@@ -32,20 +36,20 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFFF5F7FA)) {
-                    var showOnboarding by remember {
+                    var showOnboarding by rememberSaveable {
                         mutableStateOf(onboardingPrefs.getBoolean("first_launch", true))
                     }
-                    var currentScreen by remember { mutableStateOf("home") }
-                    var screenTitle by remember { mutableStateOf("") }
+                    var currentScreen by rememberSaveable { mutableStateOf("home") }
+                    var screenTitle by rememberSaveable { mutableStateOf("") }
 
-                    var userName by remember { mutableStateOf(userPrefs.fullName) }
-                    var userPhone by remember { mutableStateOf(userPrefs.phone) }
-                    var userNationalCode by remember { mutableStateOf(userPrefs.nationalCode) }
-                    var currentWellId by remember { mutableStateOf(userPrefs.currentWellId) }
+                    var userName by rememberSaveable { mutableStateOf(userPrefs.fullName) }
+                    var userPhone by rememberSaveable { mutableStateOf(userPrefs.phone) }
+                    var userNationalCode by rememberSaveable { mutableStateOf(userPrefs.nationalCode) }
+                    var currentWellId by rememberSaveable { mutableStateOf(userPrefs.currentWellId) }
 
                     val homeVm: HomeViewModel = viewModel()
 
-                    // این LaunchedEffect با تغییر currentWellId، تمام داده‌ها را دوباره بارگذاری می‌کند
+                    // بارگذاری داده‌های چاه فعال
                     LaunchedEffect(currentWellId, userNationalCode) {
                         val wid = currentWellId
                         if (wid != null && userNationalCode.isNotBlank()) {
@@ -59,7 +63,15 @@ class MainActivity : ComponentActivity() {
                     val nextTurn by homeVm.nextTurn.collectAsState()
                     val currentUser by homeVm.currentUser.collectAsState()
 
-                    // محاسبه متن شروع و پایان نوبت
+                    // اگر چاه فعال حذف شده باشد، آن را پاک کن
+                    LaunchedEffect(well, currentWellId) {
+                        if (currentWellId != null && well == null) {
+                            // چاه وجود ندارد، پاکش کن
+                            userPrefs.currentWellId = null
+                            currentWellId = null
+                        }
+                    }
+
                     val startText = remember(nextTurn) {
                         val nt = nextTurn
                         if (nt == null) "" else "${formatPersianDate(nt.startTime)} - ${formatPersianTime(nt.startTime)}"
@@ -68,7 +80,15 @@ class MainActivity : ComponentActivity() {
                         val nt = nextTurn
                         if (nt == null) "" else "${formatPersianDate(nt.endTime)} - ${formatPersianTime(nt.endTime)}"
                     }
-                    val hasTurn = nextTurn != null
+                    val hasTurn = remember(nextTurn) { nextTurn != null }
+
+                    // --------- تعیین نقش کاربر و صفحه پیش‌فرض ---------
+                    val isOperator = currentUser?.isOperator == true
+                    val isAbyar = currentUser?.isAbyar == true
+                    val userShare = currentUser?.shareHours ?: 0.0
+
+                    // اگر چاه فعال دارد و کاربر موتوربان است، وارد داشبورد موتوربان شود
+                    // (فقط یکبار در هر تعویض چاه)
 
                     when {
                         showOnboarding -> {
@@ -92,7 +112,7 @@ class MainActivity : ComponentActivity() {
                                     userNationalCode = nc
                                     currentScreen = "wells"
                                 },
-                                onBack = { }
+                                onBack = null
                             )
                         }
 
@@ -120,7 +140,7 @@ class MainActivity : ComponentActivity() {
                                 startTurnText = startText,
                                 endTurnText = endText,
                                 hasTurn = hasTurn,
-                                userShareHours = currentUser?.shareHours ?: 0.0,
+                                userShareHours = userShare,
                                 onEditProfile = { currentScreen = "profile" },
                                 onSwitchWell = { currentScreen = "wells" },
                                 onPanelClick = { route ->
@@ -200,9 +220,42 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
+                        currentScreen == "operator" -> {
+                            val wid = currentWellId
+                            if (wid != null) {
+                                OperatorDashboardScreen(
+                                    wellId = wid,
+                                    wellName = well?.name ?: "",
+                                    onBack = { currentScreen = "home" },
+                                    onManageGroups = { currentScreen = "groups" },
+                                    onFullSchedule = { currentScreen = "schedule" }
+                                )
+                            } else {
+                                ComingSoonScreen(
+                                    title = "پنل موتوربان",
+                                    onBack = { currentScreen = "home" }
+                                )
+                            }
+                        }
+
+                        currentScreen == "groups" -> {
+                            val wid = currentWellId
+                            if (wid != null) {
+                                com.example.abyar.ui.groups.GroupManagementScreen(
+                                    wellId = wid,
+                                    onBack = { currentScreen = "operator" }
+                                )
+                            } else {
+                                ComingSoonScreen(
+                                    title = "مدیریت گروه‌ها",
+                                    onBack = { currentScreen = "home" }
+                                )
+                            }
+                        }
+
                         else -> {
                             ComingSoonScreen(
-                                title = screenTitle,
+                                title = screenTitle.ifBlank { "پنل" },
                                 onBack = { currentScreen = "home" }
                             )
                         }
@@ -224,6 +277,7 @@ class MainActivity : ComponentActivity() {
         "reports" -> "گزارش‌ها"
         "settings" -> "تنظیمات"
         "support" -> "پشتیبانی"
+        "groups" -> "مدیریت گروه‌ها"
         else -> "پنل"
     }
 }
