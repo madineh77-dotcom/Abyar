@@ -24,7 +24,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.abyar.ui.theme.*
-import com.example.abyar.util.formatPersianDateTime
 
 data class HomePanel(
     val title: String,
@@ -39,7 +38,9 @@ fun HomeScreen(
     phone: String,
     wellName: String,
     wellCode: String,
-    nextTurnInfo: String,
+    startTurnText: String,
+    endTurnText: String,
+    hasTurn: Boolean,
     userShareHours: Double,
     onEditProfile: () -> Unit,
     onSwitchWell: () -> Unit,
@@ -74,82 +75,125 @@ fun HomeScreen(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
                     .background(Brush.horizontalGradient(colors = listOf(AbyarBlueDark, AbyarTeal)))
-                    .padding(20.dp)
+                    .padding(18.dp)
             ) {
                 Column {
+                    // ردیف پروفایل
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(56.dp)
+                                .size(52.dp)
                                 .clip(CircleShape)
                                 .background(Color.White.copy(alpha = 0.2f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Person, null, tint = Color.White, modifier = Modifier.size(32.dp))
+                            Icon(Icons.Default.Person, null, tint = Color.White, modifier = Modifier.size(30.dp))
                         }
-                        Spacer(Modifier.width(14.dp))
+                        Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("خوش آمدید", color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
-                            Text(userName, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                            Text(phone, color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
+                            Text("خوش آمدید", color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp)
+                            Text(userName, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                            Text(phone, color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp)
                         }
                         IconButton(onClick = onEditProfile) {
                             Icon(Icons.Default.Edit, null, tint = Color.White)
                         }
                     }
-                    Spacer(Modifier.height(14.dp))
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.2f))
-                    Spacer(Modifier.height(12.dp))
 
-                    // بخش اطلاعات چاه + دکمه تعویض چاه
+                    Spacer(Modifier.height(12.dp))
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.2f))
+                    Spacer(Modifier.height(10.dp))
+
+                    // ردیف چاه + تعویض
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Water, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Water, null, tint = Color.White, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(
                             if (wellName.isNotBlank()) "چاه: $wellName" else "چاهی انتخاب نشده",
                             color = Color.White,
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1
                         )
                         if (wellCode.isNotBlank()) {
                             Text(
                                 "کد: $wellCode",
                                 color = Color.White.copy(alpha = 0.85f),
-                                fontSize = 11.sp
+                                fontSize = 10.sp
                             )
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(6.dp))
                         }
-                        // دکمه تعویض چاه
                         AssistChip(
                             onClick = onSwitchWell,
                             label = { Text("تعویض", fontSize = 10.sp, color = Color.White) },
                             leadingIcon = {
-                                Icon(Icons.Default.SwapHoriz, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                Icon(Icons.Default.SwapHoriz, null, tint = Color.White, modifier = Modifier.size(12.dp))
                             },
                             colors = AssistChipDefaults.assistChipColors(
                                 containerColor = Color.White.copy(alpha = 0.2f)
                             ),
-                            border = null
+                            border = null,
+                            modifier = Modifier.height(28.dp)
                         )
                     }
 
                     Spacer(Modifier.height(8.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Schedule, null, tint = Color.White, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            "نوبت شما: $nextTurnInfo",
-                            color = Color.White.copy(alpha = 0.9f),
-                            fontSize = 12.sp
+
+                    // نوبت در دو خط
+                    Row(verticalAlignment = Alignment.Top) {
+                        Icon(
+                            Icons.Default.Schedule,
+                            null,
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp).padding(top = 2.dp)
                         )
-                        if (userShareHours > 0) {
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                "(${userShareHours} ساعت)",
-                                color = Color.White.copy(alpha = 0.75f),
-                                fontSize = 11.sp
-                            )
+                        Spacer(Modifier.width(6.dp))
+                        Column(Modifier.weight(1f)) {
+                            if (hasTurn) {
+                                Text(
+                                    "نوبت بعدی شما:",
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    "شروع: $startTurnText",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    "پایان: $endTurnText",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1
+                                )
+                                if (userShareHours > 0) {
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(
+                                        "(سهم شما: $userShareHours ساعت)",
+                                        color = Color.White.copy(alpha = 0.75f),
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            } else {
+                                Text(
+                                    "نوبتی برای شما ثبت نشده",
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    fontSize = 11.sp
+                                )
+                                if (userShareHours > 0) {
+                                    Text(
+                                        "(سهم شما در چاه: $userShareHours ساعت)",
+                                        color = Color.White.copy(alpha = 0.75f),
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -159,12 +203,12 @@ fun HomeScreen(
         // عنوان دسترسی سریع
         item(span = { GridItemSpan(3) }) {
             Row(
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(Icons.Default.Bolt, null, tint = AbyarOrange)
                 Spacer(Modifier.width(8.dp))
-                Text("دسترسی سریع", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Text("دسترسی سریع", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             }
         }
 
