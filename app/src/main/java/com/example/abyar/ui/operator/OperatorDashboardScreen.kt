@@ -18,12 +18,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.abyar.data.IrrigationTurn
+import com.example.abyar.data.User
 import com.example.abyar.ui.schedule.ScheduleViewModel
 import com.example.abyar.ui.theme.*
 import com.example.abyar.util.formatPersianDate
@@ -48,11 +50,31 @@ fun OperatorDashboardScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    var turnToMove by remember { mutableStateOf<IrrigationTurn?>(null) }
+    var turnForActions by remember { mutableStateOf<IrrigationTurn?>(null) }
+    var showMoveSheet by remember { mutableStateOf(false) }
+    var turnToDelete by remember { mutableStateOf<IrrigationTurn?>(null) }
 
     LaunchedEffect(wellId) { vm.loadTurns(wellId) }
 
-    // نوبت‌های امروز (بر اساس تقویم تهران)
+    // نمایش Snackbar برای خطاها
+    LaunchedEffect(Unit) {
+        vm.error.collect { err ->
+            if (err.isNotEmpty()) {
+                snackbarHostState.showSnackbar(err, duration = SnackbarDuration.Short)
+                vm.clearMessages()
+            }
+        }
+    }
+    LaunchedEffect(Unit) {
+        vm.info.collect { inf ->
+            if (inf.isNotEmpty()) {
+                snackbarHostState.showSnackbar(inf, duration = SnackbarDuration.Short)
+                vm.clearMessages()
+            }
+        }
+    }
+
+    // نوبت‌های امروز
     val todayTurns = remember(turns) {
         val cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Tehran"))
         cal.set(Calendar.HOUR_OF_DAY, 0)
@@ -65,14 +87,13 @@ fun OperatorDashboardScreen(
             .sortedBy { it.startTime }
     }
 
-    // نوبت بعدی: اولین نوبت PENDING در آینده
+    // نوبت بعدی
     val nextTurn = remember(turns) {
         val now = System.currentTimeMillis()
         turns.filter { it.startTime > now && it.status == "PENDING" }
             .minByOrNull { it.startTime }
     }
 
-    // تابع کمکی برای پیدا کردن شماره تماس
     fun getPhoneFor(userId: String): String? {
         return owners.find { it.id == userId }?.phone
     }
@@ -96,7 +117,7 @@ fun OperatorDashboardScreen(
                 .background(BackgroundLight)
                 .padding(padding)
         ) {
-            // هدر ساده
+            // هدر
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -141,7 +162,8 @@ fun OperatorDashboardScreen(
                             turn = nt,
                             phone = getPhoneFor(nt.userId),
                             onToggle = { vm.toggleTurnStatus(nt) { } },
-                            onCall = { phone -> callNumber(phone) }
+                            onCall = { phone -> callNumber(phone) },
+                            onMoreActions = { turnForActions = nt }
                         )
                     } else {
                         Card(
@@ -179,7 +201,7 @@ fun OperatorDashboardScreen(
                     }
                 }
 
-                // عنوان لیست نوبت‌های امروز
+                // عنوان لیست
                 item {
                     Row(
                         Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -225,7 +247,8 @@ fun OperatorDashboardScreen(
                             turn = t,
                             phone = getPhoneFor(t.userId),
                             onToggle = { vm.toggleTurnStatus(t) { } },
-                            onCall = { phone -> callNumber(phone) }
+                            onCall = { phone -> callNumber(phone) },
+                            onMoreActions = { turnForActions = t }
                         )
                     }
                 }
@@ -238,9 +261,9 @@ fun OperatorDashboardScreen(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         BigActionCard(
-                            icon = Icons.Default.SwapHoriz,
-                            title = "جابجایی",
-                            color = AbyarOrange,
+                            icon = Icons.Default.CalendarMonth,
+                            title = "برنامه کامل",
+                            color = AbyarBlue,
                             onClick = onFullSchedule,
                             modifier = Modifier.weight(1f)
                         )
@@ -259,19 +282,64 @@ fun OperatorDashboardScreen(
         }
     }
 
-    // شیت جابجایی سریع
-    turnToMove?.let { turn ->
-        QuickMoveSheet(
+    // شیت عملیات روی نوبت (با ⋮ باز می‌شود)
+    turnForActions?.let { turn ->
+        TurnActionsSheet(
             turn = turn,
+            phone = getPhoneFor(turn.userId),
+            onDismiss = { turnForActions = null },
+            onCall = { phone -> 
+                turnForActions = null
+                callNumber(phone) 
+            },
+            onToggle = {
+                vm.toggleTurnStatus(turn) { }
+                turnForActions = null
+            },
+            onMove = {
+                showMoveSheet = true
+            },
+            onDelete = {
+                turnToDelete = turn
+                turnForActions = null
+            }
+        )
+    }
+
+    // شیت جابجایی
+    if (showMoveSheet && turnForActions != null) {
+        QuickMoveSheet(
+            turn = turnForActions!!,
             owners = owners,
-            onDismiss = { turnToMove = null },
+            onDismiss = { showMoveSheet = false; turnForActions = null },
             onSelect = { userId, userName ->
-                vm.moveTurnToUser(turn, userId, userName) {
-                    turnToMove = null
-                    scope.launch {
-                        snackbarHostState.showSnackbar("نوبت به $userName منتقل شد")
-                    }
+                vm.moveTurnToUser(turnForActions!!, userId, userName) {
+                    showMoveSheet = false
+                    turnForActions = null
                 }
+            }
+        )
+    }
+
+    // دیالوگ تایید حذف
+    turnToDelete?.let { turn ->
+        AlertDialog(
+            onDismissRequest = { turnToDelete = null },
+            icon = { Icon(Icons.Default.Warning, null, tint = AbyarRed) },
+            title = { Text("حذف نوبت", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("آیا از حذف نوبت «${turn.userName}» از ساعت ${formatPersianTime(turn.startTime)} مطمئن هستید؟")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        vm.deleteTurn(turn) { turnToDelete = null }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AbyarRed)
+                ) { Text("حذف") }
+            },
+            dismissButton = {
+                TextButton(onClick = { turnToDelete = null }) { Text("انصراف") }
             }
         )
     }
@@ -285,7 +353,8 @@ private fun NextTurnCard(
     turn: IrrigationTurn,
     phone: String?,
     onToggle: () -> Unit,
-    onCall: (String) -> Unit
+    onCall: (String) -> Unit,
+    onMoreActions: () -> Unit
 ) {
     Card(
         Modifier.fillMaxWidth(),
@@ -319,6 +388,9 @@ private fun NextTurnCard(
                         color = TextPrimary
                     )
                 }
+                IconButton(onClick = onMoreActions) {
+                    Icon(Icons.Default.MoreVert, null, tint = TextSecondary)
+                }
             }
 
             Spacer(Modifier.height(14.dp))
@@ -345,7 +417,6 @@ private fun NextTurnCard(
 
             Spacer(Modifier.height(16.dp))
 
-            // دکمه‌های بزرگ
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
                     onClick = onToggle,
@@ -381,7 +452,8 @@ private fun TodayTurnCard(
     turn: IrrigationTurn,
     phone: String?,
     onToggle: () -> Unit,
-    onCall: (String) -> Unit
+    onCall: (String) -> Unit,
+    onMoreActions: () -> Unit
 ) {
     val isCompleted = turn.status == "COMPLETED"
     val statusColor = if (isCompleted) AbyarGreen else AbyarOrange
@@ -398,7 +470,6 @@ private fun TodayTurnCard(
             Modifier.padding(14.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // نشانگر رنگ
             Box(
                 Modifier
                     .size(5.dp, 46.dp)
@@ -431,7 +502,7 @@ private fun TodayTurnCard(
                 }
             }
 
-            // دکمه تماس کوچک
+            // دکمه تماس
             if (phone != null) {
                 IconButton(
                     onClick = { onCall(phone) },
@@ -474,16 +545,165 @@ private fun TodayTurnCard(
                     )
                 }
             }
+
+            // دکمه منو
+            IconButton(
+                onClick = onMoreActions,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    Icons.Default.MoreVert,
+                    null,
+                    tint = TextSecondary,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         }
     }
 }
 
 /**
- * کارت دکمه بزرگ پایین صفحه
+ * شیت عملیات روی یک نوبت
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TurnActionsSheet(
+    turn: IrrigationTurn,
+    phone: String?,
+    onDismiss: () -> Unit,
+    onCall: (String) -> Unit,
+    onToggle: () -> Unit,
+    onMove: () -> Unit,
+    onDelete: () -> Unit
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .padding(20.dp)
+                .fillMaxWidth()
+        ) {
+            // هدر
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(AbyarBlue.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Person, null, tint = AbyarBlue)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        turn.userName,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp
+                    )
+                    Text(
+                        "${formatPersianTime(turn.startTime)} تا ${formatPersianTime(turn.endTime)}",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(8.dp))
+
+            // گزینه‌ها
+            if (phone != null) {
+                ActionRow(
+                    icon = Icons.Default.Phone,
+                    color = AbyarBlue,
+                    title = "تماس با مالک",
+                    onClick = { onCall(phone) }
+                )
+            }
+            ActionRow(
+                icon = if (turn.status == "COMPLETED") Icons.Default.Undo else Icons.Default.CheckCircle,
+                color = if (turn.status == "COMPLETED") AbyarOrange else AbyarGreen,
+                title = if (turn.status == "COMPLETED") "برگرداندن به در انتظار" else "علامت‌گذاری انجام‌شده",
+                onClick = onToggle
+            )
+            ActionRow(
+                icon = Icons.Default.SwapHoriz,
+                color = AbyarOrange,
+                title = "جابجایی به مالک دیگر",
+                subtitle = "زمان ثابت می‌ماند، فقط مالک عوض می‌شود",
+                onClick = onMove
+            )
+            ActionRow(
+                icon = Icons.Default.Delete,
+                color = AbyarRed,
+                title = "حذف نوبت",
+                subtitle = "این نوبت از برنامه پاک می‌شود",
+                onClick = onDelete
+            )
+
+            Spacer(Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun ActionRow(
+    icon: ImageVector,
+    color: Color,
+    title: String,
+    subtitle: String? = null,
+    onClick: () -> Unit
+) {
+    Card(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.08f)),
+        elevation = CardDefaults.cardElevation(0.dp)
+    ) {
+        Row(
+            Modifier.padding(12.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(color.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, null, tint = color, modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    title,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = color
+                )
+                if (subtitle != null) {
+                    Text(
+                        subtitle,
+                        fontSize = 11.sp,
+                        color = TextSecondary
+                    )
+                }
+            }
+            Icon(Icons.Default.ChevronLeft, null, tint = color)
+        }
+    }
+}
+
+/**
+ * کارت دکمه بزرگ پایین
  */
 @Composable
 private fun BigActionCard(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     title: String,
     color: Color,
     onClick: () -> Unit,
@@ -526,7 +746,7 @@ private fun BigActionCard(
 @Composable
 private fun QuickMoveSheet(
     turn: IrrigationTurn,
-    owners: List<com.example.abyar.data.User>,
+    owners: List<User>,
     onDismiss: () -> Unit,
     onSelect: (String, String) -> Unit
 ) {
