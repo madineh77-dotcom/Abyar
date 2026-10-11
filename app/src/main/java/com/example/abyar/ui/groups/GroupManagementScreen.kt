@@ -1,6 +1,5 @@
 package com.example.abyar.ui.groups
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -9,7 +8,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -19,11 +17,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.abyar.data.AppDatabase
 import com.example.abyar.data.User
 import com.example.abyar.ui.theme.*
 
@@ -95,7 +94,6 @@ fun GroupManagementScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // آمار
                 item {
                     Card(
                         Modifier.fillMaxWidth(),
@@ -104,13 +102,12 @@ fun GroupManagementScreen(
                         elevation = CardDefaults.cardElevation(3.dp)
                     ) {
                         Row(Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            StatBox(Icons.Default.Groups, "گروه‌ها", "${groups.size}", AbyarBlue, Modifier.weight(1f))
-                            StatBox(Icons.Default.Person, "بدون گروه", "${ungrouped.size}", AbyarOrange, Modifier.weight(1f))
+                            StatBox(Icons.Default.Groups, "گروه‌ها", groups.size.toString(), AbyarBlue, Modifier.weight(1f))
+                            StatBox(Icons.Default.Person, "بدون گروه", ungrouped.size.toString(), AbyarOrange, Modifier.weight(1f))
                         }
                     }
                 }
 
-                // لیست گروه‌ها
                 if (groups.isEmpty()) {
                     item {
                         Card(
@@ -139,7 +136,6 @@ fun GroupManagementScreen(
                             expanded = expandedGroupId == g.group.id,
                             onToggle = {
                                 expandedGroupId = if (expandedGroupId == g.group.id) null else g.group.id
-                                if (expandedGroupId == g.group.id) vm.loadGroupMembers(g.group.id)
                             },
                             onDelete = { groupToDelete = g },
                             onAddMember = {
@@ -150,7 +146,6 @@ fun GroupManagementScreen(
                     }
                 }
 
-                // اعضای بدون گروه
                 if (ungrouped.isNotEmpty()) {
                     item {
                         Spacer(Modifier.height(16.dp))
@@ -185,7 +180,6 @@ fun GroupManagementScreen(
         }
     }
 
-    // دیالوگ ساخت گروه جدید
     if (showCreateDialog) {
         CreateGroupDialog(
             ungrouped = ungrouped,
@@ -199,7 +193,6 @@ fun GroupManagementScreen(
         )
     }
 
-    // دیالوگ حذف گروه
     groupToDelete?.let { g ->
         AlertDialog(
             onDismissRequest = { groupToDelete = null },
@@ -235,7 +228,6 @@ fun GroupManagementScreen(
         )
     }
 
-    // شیت افزودن عضو به گروه
     if (showAddMemberSheet && targetGroupForAdd != null) {
         AddMemberSheet(
             groupName = targetGroupForAdd!!.group.name,
@@ -276,7 +268,19 @@ private fun GroupCard(
     onDelete: () -> Unit,
     onAddMember: () -> Unit
 ) {
-    val members by remember { mutableStateOf<List<User>>(emptyList()) }
+    val context = LocalContext.current
+    val members = remember { mutableStateListOf<User>() }
+
+    // LaunchedEffect بیرون از if (expanded)
+    LaunchedEffect(details.group.id, expanded) {
+        if (expanded) {
+            val db = AppDatabase.getDatabase(context)
+            db.userDao().getUsersByGroup(details.group.id).collect { list ->
+                members.clear()
+                members.addAll(list)
+            }
+        }
+    }
 
     Card(
         Modifier.fillMaxWidth(),
@@ -320,17 +324,8 @@ private fun GroupCard(
                 ) {
                     HorizontalDivider()
                     Spacer(Modifier.height(8.dp))
-                    // لیست اعضا
-                    var loadedMembers by remember { mutableStateOf<List<User>>(emptyList()) }
-                    LaunchedEffect(details.group.id) {
-                        val db = androidx.compose.ui.platform.LocalContext.current.let {
-                            com.example.abyar.data.AppDatabase.getDatabase(it).userDao()
-                        }
-                        db.getUsersByGroup(details.group.id).collect { list ->
-                            loadedMembers = list
-                        }
-                    }
-                    loadedMembers.forEach { m ->
+
+                    members.forEach { m ->
                         Row(
                             Modifier.fillMaxWidth().padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -348,9 +343,13 @@ private fun GroupCard(
                             }
                             if (m.id == details.group.leaderId) {
                                 Surface(color = AbyarBlue, shape = RoundedCornerShape(6.dp)) {
-                                    Text("سرگروه", color = Color.White, fontSize = 9.sp,
+                                    Text(
+                                        "سرگروه",
+                                        color = Color.White,
+                                        fontSize = 9.sp,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                        fontWeight = FontWeight.Bold)
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         }
@@ -372,7 +371,6 @@ private fun GroupCard(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CreateGroupDialog(
     ungrouped: List<User>,
