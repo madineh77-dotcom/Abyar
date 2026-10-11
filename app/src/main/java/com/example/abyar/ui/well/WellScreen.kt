@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.abyar.data.Well
 import com.example.abyar.ui.theme.*
+import com.example.abyar.util.toEnglishDigits
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,7 +67,6 @@ fun WellScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             if (existingWell != null) {
-                // چاه قبلاً ثبت شده
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
@@ -99,7 +99,6 @@ fun WellScreen(
                     }
                 }
             } else {
-                // فرم ثبت چاه
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
@@ -128,10 +127,7 @@ fun WellScreen(
                             leadingIcon = { Icon(Icons.Default.Water, null, tint = AbyarBlue) },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = AbyarBlue,
-                                focusedLabelColor = AbyarBlue
-                            )
+                            singleLine = true
                         )
 
                         OutlinedTextField(
@@ -141,38 +137,29 @@ fun WellScreen(
                             leadingIcon = { Icon(Icons.Default.LocationOn, null, tint = AbyarTeal) },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = AbyarTeal,
-                                focusedLabelColor = AbyarTeal
-                            )
+                            singleLine = true
                         )
 
                         OutlinedTextField(
                             value = totalHours,
-                            onValueChange = { totalHours = it },
+                            onValueChange = { totalHours = toEnglishDigits(it) },
                             label = { Text("کل ساعت آب چاه *") },
                             leadingIcon = { Icon(Icons.Default.Schedule, null, tint = AbyarOrange) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = AbyarOrange,
-                                focusedLabelColor = AbyarOrange
-                            )
+                            singleLine = true
                         )
 
                         OutlinedTextField(
                             value = cycleDays,
-                            onValueChange = { cycleDays = it },
+                            onValueChange = { cycleDays = toEnglishDigits(it) },
                             label = { Text("مدت مدار (روز) *") },
                             leadingIcon = { Icon(Icons.Default.CalendarMonth, null, tint = AbyarPurple) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = AbyarPurple,
-                                focusedLabelColor = AbyarPurple
-                            )
+                            singleLine = true
                         )
                     }
                 }
