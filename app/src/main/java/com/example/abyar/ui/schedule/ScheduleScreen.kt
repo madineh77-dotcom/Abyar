@@ -118,7 +118,7 @@ fun ScheduleScreen(
                 .padding(padding)
         ) {
             if (turns.isNotEmpty()) {
-                StatsCard(stats)
+                CompactStatsCard(stats)
             }
 
             if (error.isNotEmpty()) {
@@ -128,7 +128,6 @@ fun ScheduleScreen(
                 MessageCard(info, AbyarGreen, Icons.Default.CheckCircle)
             }
 
-            // خلاصه سهم مالکان
             AnimatedVisibility(visible = showSummary && summaries.isNotEmpty()) {
                 OwnersSummarySection(summaries = summaries)
             }
@@ -141,14 +140,14 @@ fun ScheduleScreen(
                     leadingIcon = { Icon(Icons.Default.Search, null, modifier = Modifier.size(20.dp)) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
                     shape = RoundedCornerShape(12.dp),
                     singleLine = true
                 )
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     StatusChip("همه", "ALL", filterStatus) { filterStatus = it }
@@ -161,7 +160,7 @@ fun ScheduleScreen(
                 EmptyState()
             } else {
                 LazyColumn(
-                    contentPadding = PaddingValues(16.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 80.dp, top = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(filteredTurns, key = { it.id }) { turn ->
@@ -171,7 +170,6 @@ fun ScheduleScreen(
                             onToggle = { vm.toggleTurnStatus(turn) { } }
                         )
                     }
-                    item { Spacer(Modifier.height(80.dp)) }
                 }
             }
         }
@@ -249,6 +247,137 @@ fun ScheduleScreen(
     }
 }
 
+// ==================== کارت آمار فشرده ====================
+
+@Composable
+private fun CompactStatsCard(stats: ScheduleStats) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(3.dp)
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            // سه جعبه آمار در یک ردیف
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                CompactStatBox(
+                    Icons.Default.List, "کل", "${stats.totalTurns}",
+                    AbyarBlue, Modifier.weight(1f)
+                )
+                CompactStatBox(
+                    Icons.Default.CheckCircle, "انجام", "${stats.completedCount}",
+                    AbyarGreen, Modifier.weight(1f)
+                )
+                CompactStatBox(
+                    Icons.Default.Schedule, "در انتظار", "${stats.pendingCount}",
+                    AbyarOrange, Modifier.weight(1f)
+                )
+            }
+
+            // ردیف اطلاعات کوچک
+            if (stats.startDate != null && stats.endDate != null) {
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    SmallInfoChip(
+                        Icons.Default.PlayArrow,
+                        "شروع: ${formatPersianDate(stats.startDate)}",
+                        AbyarBlue,
+                        Modifier.weight(1f)
+                    )
+                    SmallInfoChip(
+                        Icons.Default.Stop,
+                        "پایان: ${formatPersianDate(stats.endDate)}",
+                        AbyarRed,
+                        Modifier.weight(1f)
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    SmallInfoChip(
+                        Icons.Default.Refresh,
+                        "مدار: ${stats.cycleDays} روز",
+                        AbyarPurple,
+                        Modifier.weight(1f)
+                    )
+                    SmallInfoChip(
+                        Icons.Default.Group,
+                        "شرکت‌کنندگان: ${stats.participantsCount} نفر",
+                        AbyarTeal,
+                        Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactStatBox(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f))
+    ) {
+        Row(
+            Modifier.padding(8.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, null, tint = color, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Column {
+                Text(label, fontSize = 9.sp, color = TextSecondary)
+                Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = color)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SmallInfoChip(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        color = color.copy(alpha = 0.08f),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, null, tint = color, modifier = Modifier.size(12.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(
+                text,
+                fontSize = 10.sp,
+                color = color,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1
+            )
+        }
+    }
+}
+
 // ==================== خلاصه سهم مالکان ====================
 
 @Composable
@@ -274,13 +403,12 @@ private fun OwnersSummarySection(summaries: List<OwnerScheduleSummary>) {
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                "مقایسه سهم ثبت‌شده در پنل مالکان با مجموع نوبت‌های هر مالک در این برنامه",
+                "مقایسه سهم ثبت‌شده با مجموع نوبت‌های هر مالک",
                 fontSize = 11.sp,
                 color = TextSecondary
             )
             Spacer(Modifier.height(10.dp))
 
-            // هدر جدول
             Row(
                 Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -297,36 +425,16 @@ private fun OwnersSummarySection(summaries: List<OwnerScheduleSummary>) {
                     Modifier.fillMaxWidth().padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        s.userName,
-                        Modifier.weight(1.4f),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary
-                    )
-                    Text(
-                        "${s.shareHours}",
-                        Modifier.weight(0.7f),
-                        fontSize = 12.sp,
-                        color = TextSecondary
-                    )
-                    Text(
-                        String.format("%.1f", s.scheduledHours),
-                        Modifier.weight(0.8f),
-                        fontSize = 12.sp,
-                        color = AbyarBlue,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text(s.userName, Modifier.weight(1.4f), fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                    Text("${s.shareHours}", Modifier.weight(0.7f), fontSize = 12.sp, color = TextSecondary)
+                    Text(String.format("%.1f", s.scheduledHours),
+                        Modifier.weight(0.8f), fontSize = 12.sp, color = AbyarBlue, fontWeight = FontWeight.Bold)
                     Box(Modifier.weight(1f)) {
                         if (s.isBalanced) {
-                            Surface(
-                                color = CardGreenLight,
-                                shape = RoundedCornerShape(6.dp)
-                            ) {
-                                Row(
-                                    Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
+                            Surface(color = CardGreenLight, shape = RoundedCornerShape(6.dp)) {
+                                Row(Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.Check, null, tint = AbyarGreen, modifier = Modifier.size(12.dp))
                                     Spacer(Modifier.width(3.dp))
                                     Text("متوازن", fontSize = 10.sp, color = AbyarGreen, fontWeight = FontWeight.Bold)
@@ -334,40 +442,25 @@ private fun OwnersSummarySection(summaries: List<OwnerScheduleSummary>) {
                             }
                         } else if (s.difference > 0) {
                             Surface(color = CardOrangeLight, shape = RoundedCornerShape(6.dp)) {
-                                Text(
-                                    "بیشتر: +${String.format("%.1f", s.difference)}",
+                                Text("بیشتر: +${String.format("%.1f", s.difference)}",
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                                    fontSize = 10.sp,
-                                    color = AbyarOrange,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                    fontSize = 10.sp, color = AbyarOrange, fontWeight = FontWeight.Bold)
                             }
                         } else {
                             Surface(color = Color(0xFFFFEBEE), shape = RoundedCornerShape(6.dp)) {
-                                Text(
-                                    "کمتر: ${String.format("%.1f", s.difference)}",
+                                Text("کمتر: ${String.format("%.1f", s.difference)}",
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                                    fontSize = 10.sp,
-                                    color = AbyarRed,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                    fontSize = 10.sp, color = AbyarRed, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
             }
-
             Spacer(Modifier.height(8.dp))
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Icons.Default.Info, null, tint = AbyarBlue, modifier = Modifier.size(14.dp))
-                Text(
-                    "اگر «در برنامه» از «سهم» بیشتر باشد، یعنی نوبت‌ها اشتباه تولید یا جابجا شده‌اند.",
-                    fontSize = 10.sp,
-                    color = TextSecondary
-                )
+                Text("اگر «در برنامه» از «سهم» بیشتر باشد، یعنی نوبت‌ها اشتباه تولید یا جابجا شده‌اند.",
+                    fontSize = 10.sp, color = TextSecondary)
             }
         }
     }
@@ -376,66 +469,9 @@ private fun OwnersSummarySection(summaries: List<OwnerScheduleSummary>) {
 // ==================== کامپوننت‌های قبلی ====================
 
 @Composable
-private fun StatsCard(stats: ScheduleStats) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(4.dp)
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Insights, null, tint = AbyarBlue)
-                Spacer(Modifier.width(8.dp))
-                Text("خلاصه برنامه", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            }
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatBox("کل نوبت", "${stats.totalTurns}", AbyarBlue, Modifier.weight(1f))
-                StatBox("انجام‌شده", "${stats.completedCount}", AbyarGreen, Modifier.weight(1f))
-                StatBox("در انتظار", "${stats.pendingCount}", AbyarOrange, Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(10.dp))
-            HorizontalDivider()
-            Spacer(Modifier.height(10.dp))
-            if (stats.startDate != null && stats.endDate != null) {
-                InfoRow("شروع:", formatPersianDateTime(stats.startDate))
-                InfoRow("پایان:", formatPersianDateTime(stats.endDate))
-                InfoRow("مدت مدار:", "${stats.cycleDays} روز")
-                InfoRow("تعداد شرکت‌کنندگان:", "${stats.participantsCount} نفر")
-            }
-        }
-    }
-}
-
-@Composable
-private fun StatBox(label: String, value: String, color: Color, modifier: Modifier) {
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, fontSize = 11.sp, color = TextSecondary)
-        Spacer(Modifier.height(2.dp))
-        Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = color)
-    }
-}
-
-@Composable
-private fun InfoRow(label: String, value: String) {
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 3.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(label, fontSize = 12.sp, color = TextSecondary)
-        Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-    }
-}
-
-@Composable
 private fun MessageCard(text: String, color: Color, icon: androidx.compose.ui.graphics.vector.ImageVector) {
     Card(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f))
     ) {
@@ -471,14 +507,10 @@ private fun TurnCard(
         "CANCELLED" -> Triple("لغو شده", Color.Gray, Icons.Default.Cancel)
         else -> Triple("در انتظار", AbyarOrange, Icons.Default.Schedule)
     }
-
     val durationMs = turn.endTime - turn.startTime
     val durationHours = durationMs / (1000.0 * 60 * 60)
-    val durationText = if (durationHours < 1) {
-        "${(durationMs / (1000 * 60))} دقیقه"
-    } else {
-        String.format("%.1f ساعت", durationHours)
-    }
+    val durationText = if (durationHours < 1) "${(durationMs / (1000 * 60))} دقیقه"
+    else String.format("%.1f ساعت", durationHours)
 
     Card(
         Modifier.fillMaxWidth().clickable { onClick() },
@@ -488,18 +520,10 @@ private fun TurnCard(
     ) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(4.dp, 44.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(statusColor)
-                )
+                Box(Modifier.size(4.dp, 44.dp).clip(RoundedCornerShape(2.dp)).background(statusColor))
                 Spacer(Modifier.width(12.dp))
                 Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(AbyarBlue.copy(alpha = 0.15f)),
+                    Modifier.size(40.dp).clip(CircleShape).background(AbyarBlue.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Default.Person, null, tint = AbyarBlue, modifier = Modifier.size(22.dp))
@@ -510,33 +534,19 @@ private fun TurnCard(
                     Text("از ${formatPersianDateTime(turn.startTime)}", fontSize = 11.sp, color = TextSecondary)
                     Text("تا ${formatPersianDateTime(turn.endTime)}", fontSize = 11.sp, color = TextSecondary)
                 }
-                Surface(
-                    color = AbyarBlue.copy(alpha = 0.12f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(
-                        durationText,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AbyarBlue
-                    )
+                Surface(color = AbyarBlue.copy(alpha = 0.12f), shape = RoundedCornerShape(8.dp)) {
+                    Text(durationText, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AbyarBlue)
                 }
             }
             Spacer(Modifier.height(8.dp))
-            Row(
-                Modifier.fillMaxWidth(),
+            Row(Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    color = statusColor.copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Row(
-                        Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                Surface(color = statusColor.copy(alpha = 0.15f), shape = RoundedCornerShape(8.dp)) {
+                    Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
                         Icon(statusIcon, null, tint = statusColor, modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(4.dp))
                         Text(statusLabel, color = statusColor, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -544,11 +554,8 @@ private fun TurnCard(
                 }
                 Spacer(Modifier.weight(1f))
                 TextButton(onClick = onToggle) {
-                    Icon(
-                        if (turn.status == "COMPLETED") Icons.Default.Undo else Icons.Default.Check,
-                        null,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    Icon(if (turn.status == "COMPLETED") Icons.Default.Undo else Icons.Default.Check,
+                        null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(4.dp))
                     Text(if (turn.status == "COMPLETED") "برگردان" else "تایید", fontSize = 12.sp)
                 }
@@ -563,10 +570,7 @@ private fun EmptyState() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
-                Modifier
-                    .size(120.dp)
-                    .clip(CircleShape)
-                    .background(AbyarBlue.copy(alpha = 0.1f)),
+                Modifier.size(120.dp).clip(CircleShape).background(AbyarBlue.copy(alpha = 0.1f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Default.CalendarMonth, null, tint = AbyarBlue, modifier = Modifier.size(64.dp))
@@ -592,18 +596,12 @@ private fun TurnActionsSheet(
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
-            Modifier
-                .padding(20.dp)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState()),
+            Modifier.padding(20.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(AbyarBlue.copy(alpha = 0.15f)),
+                    Modifier.size(44.dp).clip(CircleShape).background(AbyarBlue.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Default.Person, null, tint = AbyarBlue)
@@ -611,22 +609,17 @@ private fun TurnActionsSheet(
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Text(turn.userName, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                    Text(
-                        "${formatPersianDateTime(turn.startTime)} تا ${formatPersianDateTime(turn.endTime)}",
-                        fontSize = 11.sp, color = TextSecondary
-                    )
+                    Text("${formatPersianDateTime(turn.startTime)} تا ${formatPersianDateTime(turn.endTime)}",
+                        fontSize = 11.sp, color = TextSecondary)
                 }
             }
-
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
-
             ActionItem(Icons.Default.SwapHoriz, AbyarOrange, "جابجایی نوبت",
                 "انتقال این نوبت به مالک دیگر (زمان ثابت)", onMove)
             ActionItem(Icons.Default.ContentCut, AbyarPurple, "شکستن نوبت",
                 "تقسیم این نوبت به دو یا چند بخش (مجموع ثابت)", onSplit)
             ActionItem(Icons.Default.Delete, AbyarRed, "حذف نوبت",
                 "حذف کامل این نوبت از برنامه", onDelete)
-
             Spacer(Modifier.height(20.dp))
         }
     }
@@ -646,15 +639,9 @@ private fun ActionItem(
         colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.08f)),
         elevation = CardDefaults.cardElevation(0.dp)
     ) {
-        Row(
-            Modifier.padding(14.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(Modifier.padding(14.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(color.copy(alpha = 0.2f)),
+                Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(color.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(icon, null, tint = color, modifier = Modifier.size(24.dp))
@@ -679,18 +666,13 @@ private fun MoveTurnSheet(
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
-            Modifier
-                .padding(20.dp)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState()),
+            Modifier.padding(20.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text("جابجایی نوبت", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AbyarBlueDark)
             Text("نوبت فعلی: ${currentTurn.userName}", fontSize = 13.sp, color = TextSecondary)
-            Text(
-                "زمان: ${formatPersianDateTime(currentTurn.startTime)} تا ${formatPersianDateTime(currentTurn.endTime)}",
-                fontSize = 11.sp, color = TextSecondary
-            )
+            Text("زمان: ${formatPersianDateTime(currentTurn.startTime)} تا ${formatPersianDateTime(currentTurn.endTime)}",
+                fontSize = 11.sp, color = TextSecondary)
             Spacer(Modifier.height(10.dp))
             Text("انتقال نوبت به:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
 
@@ -700,22 +682,14 @@ private fun MoveTurnSheet(
             } else {
                 candidates.forEach { owner ->
                     Card(
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelect(owner.id, owner.fullName) },
+                        Modifier.fillMaxWidth().clickable { onSelect(owner.id, owner.fullName) },
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         elevation = CardDefaults.cardElevation(1.dp)
                     ) {
-                        Row(
-                            Modifier.padding(12.dp).fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                        Row(Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Box(
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(CircleShape)
-                                    .background(AbyarBlue.copy(alpha = 0.15f)),
+                                Modifier.size(38.dp).clip(CircleShape).background(AbyarBlue.copy(alpha = 0.15f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(Icons.Default.Person, null, tint = AbyarBlue, modifier = Modifier.size(20.dp))
@@ -752,33 +726,22 @@ private fun SplitTurnSheet(
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
-            Modifier
-                .padding(20.dp)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState()),
+            Modifier.padding(20.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text("شکستن نوبت", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AbyarBlueDark)
-            Text(
-                "نوبت ${currentTurn.userName} • مدت کل: ${String.format("%.1f", totalHours)} ساعت",
-                fontSize = 13.sp, color = TextSecondary
-            )
+            Text("نوبت ${currentTurn.userName} • مدت کل: ${String.format("%.1f", totalHours)} ساعت",
+                fontSize = 13.sp, color = TextSecondary)
 
-            // هشدار مهم
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CardBlueLight),
-                shape = RoundedCornerShape(10.dp)
-            ) {
+            Card(colors = CardDefaults.cardColors(containerColor = CardBlueLight),
+                shape = RoundedCornerShape(10.dp)) {
                 Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Info, null, tint = AbyarBlue, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text(
-                        "مجموع بخش‌ها پس از شکستن، دقیقاً برابر با ${String.format("%.1f", totalHours)} ساعت خواهد بود.",
-                        fontSize = 11.sp, color = AbyarBlue, fontWeight = FontWeight.SemiBold
-                    )
+                    Text("مجموع بخش‌ها پس از شکستن، دقیقاً برابر با ${String.format("%.1f", totalHours)} ساعت خواهد بود.",
+                        fontSize = 11.sp, color = AbyarBlue, fontWeight = FontWeight.SemiBold)
                 }
             }
-
             Spacer(Modifier.height(4.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -801,24 +764,19 @@ private fun SplitTurnSheet(
                     )
                 )
             }
-
             Spacer(Modifier.height(8.dp))
 
             if (mode == "TWO") {
                 Text("بخش اول چند ساعت باشد؟", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 OutlinedTextField(
-                    value = splitHours,
-                    onValueChange = { splitHours = it },
+                    value = splitHours, onValueChange = { splitHours = it },
                     label = { Text("مثلاً 2 (یعنی 2 ساعت)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 )
-                Text(
-                    "حداکثر مقدار: ${String.format("%.1f", totalHours)} ساعت (بخش دوم: ${String.format("%.1f", totalHours - (splitHours.toDoubleOrNull() ?: 0.0))} ساعت)",
-                    fontSize = 11.sp, color = TextSecondary
-                )
-
+                Text("حداکثر مقدار: ${String.format("%.1f", totalHours)} ساعت (بخش دوم: ${String.format("%.1f", totalHours - (splitHours.toDoubleOrNull() ?: 0.0))} ساعت)",
+                    fontSize = 11.sp, color = TextSecondary)
                 Spacer(Modifier.height(8.dp))
                 Button(
                     onClick = {
@@ -837,18 +795,14 @@ private fun SplitTurnSheet(
             } else {
                 Text("تعداد بخش‌های مساوی:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 OutlinedTextField(
-                    value = partsCount,
-                    onValueChange = { if (it.length <= 2) partsCount = it },
+                    value = partsCount, onValueChange = { if (it.length <= 2) partsCount = it },
                     label = { Text("مثلاً 3") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 )
-                Text(
-                    "هر بخش حدود ${String.format("%.1f", totalHours / (partsCount.toIntOrNull() ?: 2))} ساعت می‌شود (مجموع: ${String.format("%.1f", totalHours)} ساعت)",
-                    fontSize = 11.sp, color = TextSecondary
-                )
-
+                Text("هر بخش حدود ${String.format("%.1f", totalHours / (partsCount.toIntOrNull() ?: 2))} ساعت می‌شود (مجموع: ${String.format("%.1f", totalHours)} ساعت)",
+                    fontSize = 11.sp, color = TextSecondary)
                 Spacer(Modifier.height(8.dp))
                 Button(
                     onClick = {
@@ -865,7 +819,6 @@ private fun SplitTurnSheet(
                     Text("شکستن به بخش‌های مساوی", fontWeight = FontWeight.Bold)
                 }
             }
-
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -886,17 +839,12 @@ private fun GenerateDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.AutoMode, null, tint = AbyarGreen) },
-        title = {
-            Text(if (hasExisting) "تولید مجدد برنامه" else "تولید برنامه آبیاری",
-                fontWeight = FontWeight.Bold)
-        },
+        title = { Text(if (hasExisting) "تولید مجدد برنامه" else "تولید برنامه آبیاری", fontWeight = FontWeight.Bold) },
         text = {
             Column {
                 if (hasExisting) {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = CardOrangeLight),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
+                    Card(colors = CardDefaults.cardColors(containerColor = CardOrangeLight),
+                        shape = RoundedCornerShape(10.dp)) {
                         Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Warning, null, tint = AbyarOrange, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(8.dp))
@@ -912,18 +860,15 @@ private fun GenerateDialog(
                     OutlinedTextField(value = day, onValueChange = { if (it.length <= 2) day = it },
                         label = { Text("روز", fontSize = 11.sp) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f), singleLine = true,
-                        shape = RoundedCornerShape(12.dp))
+                        modifier = Modifier.weight(1f), singleLine = true, shape = RoundedCornerShape(12.dp))
                     OutlinedTextField(value = month, onValueChange = { if (it.length <= 2) month = it },
                         label = { Text("ماه", fontSize = 11.sp) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f), singleLine = true,
-                        shape = RoundedCornerShape(12.dp))
+                        modifier = Modifier.weight(1f), singleLine = true, shape = RoundedCornerShape(12.dp))
                     OutlinedTextField(value = year, onValueChange = { if (it.length <= 4) year = it },
                         label = { Text("سال", fontSize = 11.sp) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1.3f), singleLine = true,
-                        shape = RoundedCornerShape(12.dp))
+                        modifier = Modifier.weight(1.3f), singleLine = true, shape = RoundedCornerShape(12.dp))
                 }
                 Spacer(Modifier.height(8.dp))
                 Text("مثال: امروز = ${today.first}/${today.second}/${today.third}",
@@ -941,8 +886,6 @@ private fun GenerateDialog(
                 colors = ButtonDefaults.buttonColors(containerColor = AbyarGreen)
             ) { Text("تولید برنامه") }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("انصراف") }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } }
     )
 }
