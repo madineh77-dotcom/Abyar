@@ -2,6 +2,7 @@ package com.example.abyar
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -79,6 +80,27 @@ class MainActivity : ComponentActivity() {
                         if (nt == null) "" else "${formatPersianDate(nt.endTime)} - ${formatPersianTime(nt.endTime)}"
                     }
                     val hasTurn = remember(nextTurn) { nextTurn != null }
+
+                    // --------- BackHandler: مدیریت دکمه بازگشت گوشی ---------
+                    // اگر در حالت "خروج از اپ" هستیم → از BackHandler استفاده نمی‌کنیم (خروج از اپ)
+                    // اگر در صفحه داخلی هستیم → BackHandler برای بازگشت
+                    val shouldHandleBack = when {
+                        showOnboarding -> false
+                        userNationalCode.isBlank() -> false
+                        currentWellId == null -> false
+                        currentScreen == "home" -> false
+                        else -> true
+                    }
+
+                    if (shouldHandleBack) {
+                        BackHandler {
+                            // منطق بازگشت بر اساس صفحه فعلی
+                            when (currentScreen) {
+                                "groups" -> currentScreen = "operator"
+                                else -> currentScreen = "home"
+                            }
+                        }
+                    }
 
                     when {
                         showOnboarding -> {
