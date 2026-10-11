@@ -16,6 +16,7 @@ import com.example.abyar.ui.home.HomeViewModel
 import com.example.abyar.ui.onboarding.OnboardingScreen
 import com.example.abyar.ui.owners.OwnersScreen
 import com.example.abyar.ui.profile.ProfileEditScreen
+import com.example.abyar.ui.schedule.ScheduleScreen
 import com.example.abyar.ui.well.WellScreen
 import com.example.abyar.ui.wells.MyWellsScreen
 import com.example.abyar.util.UserPrefs
@@ -43,7 +44,6 @@ class MainActivity : ComponentActivity() {
 
                     val homeVm: HomeViewModel = viewModel()
 
-                    // بارگذاری داده‌های چاه فعال
                     LaunchedEffect(currentWellId, userNationalCode) {
                         val wid = currentWellId
                         if (wid != null && userNationalCode.isNotBlank()) {
@@ -71,7 +71,6 @@ class MainActivity : ComponentActivity() {
                             })
                         }
 
-                        // اگر کد ملی ندارد → صفحه پروفایل
                         userNationalCode.isBlank() -> {
                             ProfileEditScreen(
                                 initialName = userName,
@@ -90,7 +89,6 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // اگر چاه فعال ندارد → صفحه چاه‌های من
                         currentWellId == null -> {
                             MyWellsScreen(
                                 nationalCode = userNationalCode,
@@ -173,6 +171,21 @@ class MainActivity : ComponentActivity() {
                             } else {
                                 ComingSoonScreen(
                                     title = "مدیریت مالکان",
+                                    onBack = { currentScreen = "home" }
+                                )
+                            }
+                        }
+
+                        currentScreen == "schedule" -> {
+                            val wid = currentWellId
+                            if (wid != null) {
+                                ScheduleScreen(
+                                    wellId = wid,
+                                    onBack = { currentScreen = "home" }
+                                )
+                            } else {
+                                ComingSoonScreen(
+                                    title = "برنامه آبیاری",
                                     onBack = { currentScreen = "home" }
                                 )
                             }
