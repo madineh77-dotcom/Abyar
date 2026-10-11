@@ -20,9 +20,6 @@ data class ScheduleStats(
     val pendingCount: Int
 )
 
-/**
- * خلاصه سهم هر مالک در برنامه
- */
 data class OwnerScheduleSummary(
     val userId: String,
     val userName: String,
@@ -31,7 +28,7 @@ data class OwnerScheduleSummary(
     val turnsCount: Int
 ) {
     val difference: Double get() = scheduledHours - shareHours
-    val isBalanced: Boolean get() = kotlin.math.abs(difference) < 0.1
+    val isBalanced: Boolean get() = kotlin.math.abs(difference) < 0.05
 }
 
 class ScheduleViewModel(application: Application) : AndroidViewModel(application) {
@@ -86,7 +83,7 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
                 val summaries = allOwners.map { owner ->
                     val userTurns = list.filter { it.userId == owner.id }
                     val totalMs = userTurns.sumOf { it.endTime - it.startTime }
-                    val totalHours = totalMs / (1000.0 * 60 * 60)
+                    val totalHours = totalMs / (1000.0 * 60.0 * 60.0)
                     OwnerScheduleSummary(
                         userId = owner.id,
                         userName = owner.fullName,
@@ -117,12 +114,6 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
 
             if (owners.isEmpty()) {
                 _error.value = "هیچ مالکی با سهم آب ثبت نشده است"
-                return@launch
-            }
-
-            val totalShare = owners.sumOf { it.shareHours }
-            if (totalShare <= 0.0) {
-                _error.value = "مجموع سهم مالکان صفر است"
                 return@launch
             }
 
@@ -167,8 +158,6 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    // ============ جابجایی نوبت ============
-
     fun moveTurnToUser(
         turn: IrrigationTurn,
         newUserId: String,
@@ -190,12 +179,9 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    // ============ شکستن نوبت ============
-
     /**
      * شکستن نوبت به دو بخش با نقطه دلخواه
-     * اعتبارسنجی: مجموع دو بخش = زمان نوبت اصلی (تضمین ریاضی)
-     * و همچنین مجموع ساعات مالک بعد از شکستن، از سهمش بیشتر نمی‌شود.
+     * مجموع دو بخش = زمان نوبت اصلی (بدون کم و زیاد شدن)
      */
     fun splitTurnIntoTwo(
         turn: IrrigationTurn,
@@ -204,27 +190,14 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
     ) {
         viewModelScope.launch {
             val totalMs = turn.endTime - turn.startTime
-            val totalHours = totalMs / (1000.0 * 60 * 60)
+            val totalHours = totalMs / (1000.0 * 60.0 * 60.0)
 
-            if (splitAfterHours <= 0 || splitAfterHours >= totalHours) {
+            if (splitAfterHours <= 0.0 || splitAfterHours >= totalHours) {
                 _error.value = "زمان شکستن باید بین ۰ و ${String.format("%.1f", totalHours)} ساعت باشد"
                 return@launch
             }
 
-            // اعتبارسنجی: مجموع نوبت‌های این مالک از سهمش بیشتر نشود
-            val shareHours = _owners.value.find { it.id == turn.userId }?.shareHours ?: 0.0
-            val currentTotalHours = _turns.value
-                .filter { it.userId == turn.userId }
-                .sumOf { (it.endTime - it.startTime) / (1000.0 * 60 * 60) }
-
-            // این نوبت جزء همان مجموع است و شکستن آن مجموع را تغییر نمی‌دهد
-            // پس مجموع نهایی = currentTotalHours (بدون تغییر)
-            if (currentTotalHours > shareHours + 0.1) {
-                _error.value = "مجموع نوبت‌های این مالک (${String.format("%.1f", currentTotalHours)} ساعت) از سهمش (${shareHours} ساعت) بیشتر است"
-                return@launch
-            }
-
-            val splitMs = (splitAfterHours * 60 * 60 * 1000).toLong()
+            val splitMs = (splitAfterHours * 60.0 * 60.0 * 1000.0).toLong()
             val splitTime = turn.startTime + splitMs
 
             val firstTurn = turn.copy(
@@ -247,6 +220,7 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
 
     /**
      * شکستن نوبت به N بخش مساوی
+     * مجموع بخش‌ها = زمان نوبت اصلی
      */
     fun splitTurnIntoEqualParts(
         turn: IrrigationTurn,
@@ -262,14 +236,8 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
             val totalMs = turn.endTime - turn.startTime
             val partMs = totalMs / partsCount
 
-            // اعتبارسنجی مشابه
-            val shareHours = _owners.value.find { it.id == turn.userId }?.shareHours ?: 0.0
-            val currentTotalHours = _turns.value
-                .filter { it.userId == turn.userId }
-                .sumOf { (it.endTime - it.startTime) / (1000.0 * 60 * 60) }
-
-            if (currentTotalHours > shareHours + 0.1) {
-                _error.value = "مجموع نوبت‌های این مالک از سهمش بیشتر است"
+            if (partMs < 60_000L) {
+                _error.value = "هر بخش کمتر از ۱ دقیقه می‌شود. تعداد بخش‌ها را کم کنید."
                 return@launch
             }
 
@@ -284,7 +252,8 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
                 )
             }
             turnDao.insertTurns(newTurns)
-            _info.value = "نوبت به $partsCount بخش مساوی شکسته شد (مجموع ثابت: ${String.format("%.1f", (totalMs / (1000.0 * 60 * 60)))} ساعت)"
+            val totalHours = totalMs / (1000.0 * 60.0 * 60.0)
+            _info.value = "نوبت به $partsCount بخش مساوی شکسته شد (مجموع ثابت: ${String.format("%.1f", totalHours)} ساعت)"
             onSuccess()
         }
     }
