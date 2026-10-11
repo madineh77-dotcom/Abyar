@@ -17,10 +17,10 @@ data class OwnersStats(
 )
 
 data class GroupedOwners(
-    val majorOwners: List<User>,          // مالکان عمده (سهم > 5)
-    val membersOfMajor: Map<String, List<User>>,  // زیرمجموعه هر مالک عمده
-    val independentSmallOwners: List<User>,  // خرده‌مالکان بدون سرگروه
-    val operatorsAndAbyars: List<User>    // موتوربان و آبیار
+    val majorOwners: List<User>,
+    val membersOfMajor: Map<String, List<User>>,
+    val independentSmallOwners: List<User>,
+    val operatorsAndAbyars: List<User>
 )
 
 class OwnersViewModel(application: Application) : AndroidViewModel(application) {
@@ -58,12 +58,20 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
             val smallOwners = allUsers.filter { it.shareHours in 0.01..5.0 }
             val operatorAbyars = allUsers.filter { it.isOperator || it.isAbyar }
 
+            // گروه‌بندی خرده‌مالکان بر اساس گروه
             val memberMap = mutableMapOf<String, List<User>>()
             for (major in majorOwners) {
-                memberMap[major.id] = smallOwners.filter { it.groupLeaderId == major.id }
+                // پیدا کردن گروهی که این مالک عمده سرگروه آن است
+                val group = db.groupDao().getGroupsByWellSync(wellId)
+                    .find { it.leaderId == major.id }
+                if (group != null) {
+                    memberMap[major.id] = smallOwners.filter { it.groupId == group.id }
+                } else {
+                    memberMap[major.id] = emptyList()
+                }
             }
 
-            val independentSmall = smallOwners.filter { it.groupLeaderId == null }
+            val independentSmall = smallOwners.filter { it.groupId == null }
 
             _grouped.value = GroupedOwners(
                 majorOwners = majorOwners,
@@ -80,7 +88,6 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
         phone: String,
         nationalCode: String,
         shareHours: Double,
-        roleIsMajor: Boolean,
         isOperator: Boolean,
         operatorWageType: WageType?,
         operatorWageAmount: Double,
@@ -95,7 +102,6 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
                 return@launch
             }
 
-            // اعتبارسنجی‌ها
             when {
                 fullName.isBlank() -> { _error.value = "نام الزامی است"; return@launch }
                 phone.length < 11 -> { _error.value = "شماره تماس باید ۱۱ رقم باشد"; return@launch }
@@ -103,14 +109,12 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
                 shareHours < 0 -> { _error.value = "سهم نمی‌تواند منفی باشد"; return@launch }
             }
 
-            // بررسی تکراری بودن کد ملی در این چاه
             val existing = userDao.getUserByNationalCode(wellId, nationalCode)
             if (existing != null) {
                 _error.value = "کاربری با این کد ملی در این چاه ثبت شده است"
                 return@launch
             }
 
-            // اعتبارسنجی مجموع سهم
             val currentTotal = userDao.getTotalShareHours(wellId) ?: 0.0
             if (currentTotal + shareHours > well.totalHours) {
                 val remaining = well.totalHours - currentTotal
@@ -118,8 +122,6 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
                 return@launch
             }
 
-            // تعیین سرگروه: اگر کاربر مالک عمده نیست ولی مالک عمده در چاه وجود دارد
-            // در این فاز، به صورت پیش‌فرض بدون سرگروه ثبت می‌شود
             val user = User(
                 id = UUID.randomUUID().toString(),
                 wellId = wellId,
@@ -133,7 +135,7 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
                 isAbyar = isAbyar,
                 abyarWageType = if (isAbyar) abyarWageType else null,
                 abyarWageAmount = if (isAbyar) abyarWageAmount else 0.0,
-                groupLeaderId = null
+                groupId = null
             )
             userDao.insertUser(user)
             _error.value = ""
@@ -141,18 +143,9 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun updateGroupLeader(userId: String, leaderId: String?, onSuccess: () -> Unit) {
-        viewModelScope.launch {
-            val user = userDao.getUserById(userId) ?: return@launch
-            userDao.updateUser(user.copy(groupLeaderId = leaderId))
-            onSuccess()
-        }
-    }
-
     fun deleteOwner(user: User, onSuccess: () -> Unit) {
         viewModelScope.launch {
             userDao.deleteUser(user.id)
-            // سهم به صورت خودکار به مجموع برمی‌گردد (چون حذف شده)
             onSuccess()
         }
     }
