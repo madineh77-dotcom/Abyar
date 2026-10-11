@@ -5,9 +5,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -22,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.abyar.data.IrrigationTurn
+import com.example.abyar.data.User
 import com.example.abyar.ui.theme.*
 import com.example.abyar.util.*
 
@@ -33,6 +36,7 @@ fun ScheduleScreen(
     vm: ScheduleViewModel = viewModel()
 ) {
     val turns by vm.turns.collectAsState()
+    val owners by vm.owners.collectAsState()
     val stats by vm.stats.collectAsState()
     val error by vm.error.collectAsState()
     val info by vm.info.collectAsState()
@@ -41,8 +45,19 @@ fun ScheduleScreen(
     var showClearDialog by remember { mutableStateOf(false) }
     var filterStatus by remember { mutableStateOf("ALL") }
     var searchQuery by remember { mutableStateOf("") }
+    var actionTurn by remember { mutableStateOf<IrrigationTurn?>(null) }
+    var showMoveSheet by remember { mutableStateOf(false) }
+    var showSplitSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(wellId) { vm.loadTurns(wellId) }
+
+    // پاک کردن پیام‌ها بعد از ۳ ثانیه
+    LaunchedEffect(error, info) {
+        if (error.isNotEmpty() || info.isNotEmpty()) {
+            kotlinx.coroutines.delay(3000)
+            vm.clearMessages()
+        }
+    }
 
     val filteredTurns = remember(turns, filterStatus, searchQuery) {
         turns.filter { turn ->
@@ -93,12 +108,10 @@ fun ScheduleScreen(
                 .background(BackgroundLight)
                 .padding(padding)
         ) {
-            // آمار
             if (turns.isNotEmpty()) {
                 StatsCard(stats)
             }
 
-            // پیام خطا / اطلاع
             if (error.isNotEmpty()) {
                 MessageCard(error, AbyarRed, Icons.Default.Error)
             }
@@ -106,25 +119,18 @@ fun ScheduleScreen(
                 MessageCard(info, AbyarGreen, Icons.Default.CheckCircle)
             }
 
-            // فیلتر و جستجو
             if (turns.isNotEmpty()) {
-                Row(
-                    Modifier
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("جستجوی مالک...", fontSize = 13.sp) },
+                    leadingIcon = { Icon(Icons.Default.Search, null, modifier = Modifier.size(20.dp)) },
+                    modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        placeholder = { Text("جستجوی مالک...", fontSize = 13.sp) },
-                        leadingIcon = { Icon(Icons.Default.Search, null, modifier = Modifier.size(20.dp)) },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true
-                    )
-                }
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -137,7 +143,6 @@ fun ScheduleScreen(
                 }
             }
 
-            // لیست نوبت‌ها
             if (turns.isEmpty()) {
                 EmptyState()
             } else {
@@ -148,8 +153,8 @@ fun ScheduleScreen(
                     items(filteredTurns, key = { it.id }) { turn ->
                         TurnCard(
                             turn = turn,
-                            onToggle = { vm.toggleTurnStatus(turn) { } },
-                            onDelete = { vm.deleteTurn(turn) { } }
+                            onClick = { actionTurn = turn },
+                            onToggle = { vm.toggleTurnStatus(turn) { } }
                         )
                     }
                     item { Spacer(Modifier.height(80.dp)) }
@@ -158,13 +163,65 @@ fun ScheduleScreen(
         }
     }
 
-    // دیالوگ تولید برنامه
+    // Bottom Sheet عملیات روی نوبت
+    actionTurn?.let { turn ->
+        TurnActionsSheet(
+            turn = turn,
+            onDismiss = { actionTurn = null },
+            onDelete = {
+                vm.deleteTurn(turn) { actionTurn = null }
+            },
+            onMove = {
+                showMoveSheet = true
+            },
+            onSplit = {
+                showSplitSheet = true
+            }
+        )
+    }
+
+    // دیالوگ تولید
     if (showGenerateDialog) {
         GenerateDialog(
             hasExisting = turns.isNotEmpty(),
-            onDismiss = { showGenerateDialog = false; vm.clearMessages() },
+            onDismiss = { showGenerateDialog = false },
             onConfirm = { y, m, d ->
                 vm.generateSchedule(wellId, y, m, d) { showGenerateDialog = false }
+            }
+        )
+    }
+
+    // شیت جابجایی
+    if (showMoveSheet && actionTurn != null) {
+        MoveTurnSheet(
+            currentTurn = actionTurn!!,
+            owners = owners,
+            onDismiss = { showMoveSheet = false; actionTurn = null },
+            onSelect = { userId, userName ->
+                vm.moveTurnToUser(actionTurn!!, userId, userName) {
+                    showMoveSheet = false
+                    actionTurn = null
+                }
+            }
+        )
+    }
+
+    // شیت شکستن
+    if (showSplitSheet && actionTurn != null) {
+        SplitTurnSheet(
+            currentTurn = actionTurn!!,
+            onDismiss = { showSplitSheet = false; actionTurn = null },
+            onSplitTwo = { hours ->
+                vm.splitTurnIntoTwo(actionTurn!!, hours) {
+                    showSplitSheet = false
+                    actionTurn = null
+                }
+            },
+            onSplitEqual = { parts ->
+                vm.splitTurnIntoEqualParts(actionTurn!!, parts) {
+                    showSplitSheet = false
+                    actionTurn = null
+                }
             }
         )
     }
@@ -178,9 +235,7 @@ fun ScheduleScreen(
             text = { Text("آیا از پاک کردن ${turns.size} نوبت ثبت‌شده مطمئن هستید؟ این عملیات قابل بازگشت نیست.") },
             confirmButton = {
                 Button(
-                    onClick = {
-                        vm.clearAllTurns(wellId) { showClearDialog = false }
-                    },
+                    onClick = { vm.clearAllTurns(wellId) { showClearDialog = false } },
                     colors = ButtonDefaults.buttonColors(containerColor = AbyarRed)
                 ) { Text("پاک کن") }
             },
@@ -191,7 +246,7 @@ fun ScheduleScreen(
     }
 }
 
-// ============ کامپوننت‌ها ============
+// ==================== کامپوننت‌ها ====================
 
 @Composable
 private fun StatsCard(stats: ScheduleStats) {
@@ -281,8 +336,8 @@ private fun StatusChip(label: String, value: String, current: String, onSelect: 
 @Composable
 private fun TurnCard(
     turn: IrrigationTurn,
-    onToggle: () -> Unit,
-    onDelete: () -> Unit
+    onClick: () -> Unit,
+    onToggle: () -> Unit
 ) {
     val (statusLabel, statusColor, statusIcon) = when (turn.status) {
         "COMPLETED" -> Triple("انجام شد", AbyarGreen, Icons.Default.CheckCircle)
@@ -290,8 +345,17 @@ private fun TurnCard(
         else -> Triple("در انتظار", AbyarOrange, Icons.Default.Schedule)
     }
 
+    // محاسبه مدت زمان نوبت
+    val durationMs = turn.endTime - turn.startTime
+    val durationHours = durationMs / (1000.0 * 60 * 60)
+    val durationText = if (durationHours < 1) {
+        "${(durationMs / (1000 * 60))} دقیقه"
+    } else {
+        String.format("%.1f ساعت", durationHours)
+    }
+
     Card(
-        Modifier.fillMaxWidth(),
+        Modifier.fillMaxWidth().clickable { onClick() },
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(2.dp)
@@ -300,7 +364,7 @@ private fun TurnCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(4.dp, 40.dp)
+                        .size(4.dp, 44.dp)
                         .clip(RoundedCornerShape(2.dp))
                         .background(statusColor)
                 )
@@ -326,8 +390,18 @@ private fun TurnCard(
                         fontSize = 11.sp, color = TextSecondary
                     )
                 }
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, null, tint = AbyarRed, modifier = Modifier.size(20.dp))
+                // نشانگر مدت زمان
+                Surface(
+                    color = AbyarBlue.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        durationText,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AbyarBlue
+                    )
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -362,6 +436,12 @@ private fun TurnCard(
                         fontSize = 12.sp
                     )
                 }
+                Icon(
+                    Icons.Default.MoreVert,
+                    null,
+                    tint = TextSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }
@@ -369,10 +449,7 @@ private fun TurnCard(
 
 @Composable
 private fun EmptyState() {
-    Box(
-        Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
                 Modifier
@@ -394,7 +471,337 @@ private fun EmptyState() {
     }
 }
 
-// ============ دیالوگ تولید ============
+// ==================== Bottom Sheet عملیات ====================
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TurnActionsSheet(
+    turn: IrrigationTurn,
+    onDismiss: () -> Unit,
+    onDelete: () -> Unit,
+    onMove: () -> Unit,
+    onSplit: () -> Unit
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .padding(20.dp)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // هدر
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(AbyarBlue.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Person, null, tint = AbyarBlue)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text(turn.userName, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                    Text(
+                        "${formatPersianDateTime(turn.startTime)} تا ${formatPersianDateTime(turn.endTime)}",
+                        fontSize = 11.sp, color = TextSecondary
+                    )
+                }
+            }
+
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+            // گزینه‌ها
+            ActionItem(
+                icon = Icons.Default.SwapHoriz,
+                color = AbyarOrange,
+                title = "جابجایی نوبت",
+                subtitle = "انتقال این نوبت به مالک دیگر (زمان ثابت)",
+                onClick = {
+                    onMove()
+                }
+            )
+            ActionItem(
+                icon = Icons.Default.ContentCut,
+                color = AbyarPurple,
+                title = "شکستن نوبت",
+                subtitle = "تقسیم این نوبت به دو یا چند بخش",
+                onClick = {
+                    onSplit()
+                }
+            )
+            ActionItem(
+                icon = Icons.Default.Delete,
+                color = AbyarRed,
+                title = "حذف نوبت",
+                subtitle = "حذف کامل این نوبت از برنامه",
+                onClick = onDelete
+            )
+
+            Spacer(Modifier.height(20.dp))
+        }
+    }
+}
+
+@Composable
+private fun ActionItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    color: Color,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Card(
+        Modifier.fillMaxWidth().clickable { onClick() },
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.08f)),
+        elevation = CardDefaults.cardElevation(0.dp)
+    ) {
+        Row(
+            Modifier.padding(14.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(color.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, null, tint = color, modifier = Modifier.size(24.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = color)
+                Text(subtitle, fontSize = 11.sp, color = TextSecondary)
+            }
+            Icon(Icons.Default.ChevronLeft, null, tint = color)
+        }
+    }
+}
+
+// ==================== شیت جابجایی ====================
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MoveTurnSheet(
+    currentTurn: IrrigationTurn,
+    owners: List<User>,
+    onDismiss: () -> Unit,
+    onSelect: (String, String) -> Unit
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .padding(20.dp)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("جابجایی نوبت", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AbyarBlueDark)
+            Text(
+                "نوبت فعلی: ${currentTurn.userName}",
+                fontSize = 13.sp, color = TextSecondary
+            )
+            Text(
+                "زمان: ${formatPersianDateTime(currentTurn.startTime)} تا ${formatPersianDateTime(currentTurn.endTime)}",
+                fontSize = 11.sp, color = TextSecondary
+            )
+
+            Spacer(Modifier.height(10.dp))
+            Text("انتقال نوبت به:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+
+            val candidates = owners.filter { it.id != currentTurn.userId }
+            if (candidates.isEmpty()) {
+                Text("مالک دیگری برای انتقال وجود ندارد", color = AbyarRed, fontSize = 13.sp)
+            } else {
+                candidates.forEach { owner ->
+                    Card(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(owner.id, owner.fullName) },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(1.dp)
+                    ) {
+                        Row(
+                            Modifier.padding(12.dp).fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(AbyarBlue.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Person, null, tint = AbyarBlue, modifier = Modifier.size(20.dp))
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(owner.fullName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text(
+                                    "سهم: ${owner.shareHours} ساعت",
+                                    fontSize = 11.sp, color = AbyarGreen
+                                )
+                            }
+                            Icon(Icons.Default.ChevronLeft, null, tint = AbyarBlue)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+        }
+    }
+}
+
+// ==================== شیت شکستن ====================
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SplitTurnSheet(
+    currentTurn: IrrigationTurn,
+    onDismiss: () -> Unit,
+    onSplitTwo: (Double) -> Unit,
+    onSplitEqual: (Int) -> Unit
+) {
+    var mode by remember { mutableStateOf("TWO") } // TWO or EQUAL
+    var splitHours by remember { mutableStateOf("") }
+    var partsCount by remember { mutableStateOf("2") }
+
+    val totalMs = currentTurn.endTime - currentTurn.startTime
+    val totalHours = totalMs / (1000.0 * 60 * 60)
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .padding(20.dp)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text("شکستن نوبت", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AbyarBlueDark)
+            Text(
+                "نوبت ${currentTurn.userName} • مدت کل: ${String.format("%.1f", totalHours)} ساعت",
+                fontSize = 13.sp, color = TextSecondary
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            // انتخاب حالت
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = mode == "TWO",
+                    onClick = { mode = "TWO" },
+                    label = { Text("دو بخش دلخواه", fontSize = 12.sp) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = AbyarPurple,
+                        selectedLabelColor = Color.White
+                    )
+                )
+                FilterChip(
+                    selected = mode == "EQUAL",
+                    onClick = { mode = "EQUAL" },
+                    label = { Text("چند بخش مساوی", fontSize = 12.sp) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = AbyarPurple,
+                        selectedLabelColor = Color.White
+                    )
+                )
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            if (mode == "TWO") {
+                Text(
+                    "بخش اول چند ساعت باشد؟",
+                    fontWeight = FontWeight.Bold, fontSize = 14.sp
+                )
+                OutlinedTextField(
+                    value = splitHours,
+                    onValueChange = { splitHours = it },
+                    label = { Text("مثلاً 2 (یعنی 2 ساعت)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                Text(
+                    "حداکثر مقدار: ${String.format("%.1f", totalHours)} ساعت",
+                    fontSize = 11.sp, color = TextSecondary
+                )
+
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBlueLight),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Info, null, tint = AbyarBlue, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "بخش اول از ساعت شروع، به اندازه مقدار وارد شده طول می‌کشد. بخش دوم، باقیمانده را می‌گیرد.",
+                            fontSize = 11.sp, color = AbyarBlue
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        val h = splitHours.toDoubleOrNull() ?: 0.0
+                        if (h > 0 && h < totalHours) onSplitTwo(h)
+                    },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AbyarPurple),
+                    enabled = splitHours.isNotBlank()
+                ) {
+                    Icon(Icons.Default.ContentCut, null, tint = Color.White)
+                    Spacer(Modifier.width(8.dp))
+                    Text("شکستن به دو بخش", fontWeight = FontWeight.Bold)
+                }
+            } else {
+                Text(
+                    "تعداد بخش‌های مساوی:",
+                    fontWeight = FontWeight.Bold, fontSize = 14.sp
+                )
+                OutlinedTextField(
+                    value = partsCount,
+                    onValueChange = { if (it.length <= 2) partsCount = it },
+                    label = { Text("مثلاً 3 (یعنی 3 بخش مساوی)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                Text(
+                    "هر بخش حدود ${String.format("%.1f", totalHours / (partsCount.toIntOrNull() ?: 2))} ساعت می‌شود",
+                    fontSize = 11.sp, color = TextSecondary
+                )
+
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        val n = partsCount.toIntOrNull() ?: 0
+                        if (n in 2..10) onSplitEqual(n)
+                    },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AbyarPurple),
+                    enabled = partsCount.isNotBlank()
+                ) {
+                    Icon(Icons.Default.ContentCut, null, tint = Color.White)
+                    Spacer(Modifier.width(8.dp))
+                    Text("شکستن به بخش‌های مساوی", fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+// ==================== دیالوگ تولید ====================
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -407,7 +814,6 @@ private fun GenerateDialog(
     var year by remember { mutableStateOf(today.first.toString()) }
     var month by remember { mutableStateOf(today.second.toString()) }
     var day by remember { mutableStateOf(today.third.toString()) }
-    var showMonthPicker by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
