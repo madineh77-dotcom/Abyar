@@ -788,18 +788,36 @@ private fun GenerateDialog(
                 Text("تاریخ شروع مدار را وارد کنید:", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = day, onValueChange = { if (it.length <= 2) day = it },
-                        label = { Text("روز", fontSize = 11.sp) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f), singleLine = true, shape = RoundedCornerShape(12.dp))
-                    OutlinedTextField(value = month, onValueChange = { if (it.length <= 2) month = it },
-                        label = { Text("ماه", fontSize = 11.sp) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f), singleLine = true, shape = RoundedCornerShape(12.dp))
-                    OutlinedTextField(value = year, onValueChange = { if (it.length <= 4) year = it },
-                        label = { Text("سال", fontSize = 11.sp) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1.3f), singleLine = true, shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(
+                  value = day,
+                  onValueChange = { 
+                    val converted = com.example.abyar.util.toEnglishDigits(it)
+                    if (converted.length <= 2 && converted.all { c -> c.isDigit() }) day = converted 
+                 },
+                 label = { Text("روز", fontSize = 11.sp) },
+                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                 modifier = Modifier.weight(1f), singleLine = true, shape = RoundedCornerShape(12.dp)
+                )
+                OutlinedTextField(
+                  value = month,
+                  onValueChange = { 
+                    val converted = com.example.abyar.util.toEnglishDigits(it)
+                    if (converted.length <= 2 && converted.all { c -> c.isDigit() }) month = converted 
+                 },
+                 label = { Text("ماه", fontSize = 11.sp) },
+                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                 modifier = Modifier.weight(1f), singleLine = true, shape = RoundedCornerShape(12.dp)
+                )
+OutlinedTextField(
+    value = year,
+    onValueChange = { 
+        val converted = com.example.abyar.util.toEnglishDigits(it)
+        if (converted.length <= 4 && converted.all { c -> c.isDigit() }) year = converted 
+    },
+    label = { Text("سال", fontSize = 11.sp) },
+    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+    modifier = Modifier.weight(1.3f), singleLine = true, shape = RoundedCornerShape(12.dp)
+)
                 }
                 Spacer(Modifier.height(8.dp))
                 Text("مثال: امروز = ${today.first}/${today.second}/${today.third}", fontSize = 11.sp, color = TextSecondary)
