@@ -20,7 +20,8 @@ import com.example.abyar.ui.schedule.ScheduleScreen
 import com.example.abyar.ui.well.WellScreen
 import com.example.abyar.ui.wells.MyWellsScreen
 import com.example.abyar.util.UserPrefs
-import com.example.abyar.util.formatPersianDateTime
+import com.example.abyar.util.formatPersianDate
+import com.example.abyar.util.formatPersianTime
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,6 +45,7 @@ class MainActivity : ComponentActivity() {
 
                     val homeVm: HomeViewModel = viewModel()
 
+                    // این LaunchedEffect با تغییر currentWellId، تمام داده‌ها را دوباره بارگذاری می‌کند
                     LaunchedEffect(currentWellId, userNationalCode) {
                         val wid = currentWellId
                         if (wid != null && userNationalCode.isNotBlank()) {
@@ -57,11 +59,16 @@ class MainActivity : ComponentActivity() {
                     val nextTurn by homeVm.nextTurn.collectAsState()
                     val currentUser by homeVm.currentUser.collectAsState()
 
-                    val nextTurnInfo = remember(nextTurn) {
+                    // محاسبه متن شروع و پایان نوبت
+                    val startText = remember(nextTurn) {
                         val nt = nextTurn
-                        if (nt == null) "نوبتی ثبت نشده"
-                        else "${formatPersianDateTime(nt.startTime)} تا ${formatPersianDateTime(nt.endTime)}"
+                        if (nt == null) "" else "${formatPersianDate(nt.startTime)} - ${formatPersianTime(nt.startTime)}"
                     }
+                    val endText = remember(nextTurn) {
+                        val nt = nextTurn
+                        if (nt == null) "" else "${formatPersianDate(nt.endTime)} - ${formatPersianTime(nt.endTime)}"
+                    }
+                    val hasTurn = nextTurn != null
 
                     when {
                         showOnboarding -> {
@@ -110,7 +117,9 @@ class MainActivity : ComponentActivity() {
                                 phone = userPhone,
                                 wellName = well?.name ?: "",
                                 wellCode = well?.code ?: "",
-                                nextTurnInfo = nextTurnInfo,
+                                startTurnText = startText,
+                                endTurnText = endText,
+                                hasTurn = hasTurn,
                                 userShareHours = currentUser?.shareHours ?: 0.0,
                                 onEditProfile = { currentScreen = "profile" },
                                 onSwitchWell = { currentScreen = "wells" },
