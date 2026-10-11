@@ -83,6 +83,9 @@ interface TurnDao {
 
     @Query("DELETE FROM irrigation_turns WHERE wellId = :wellId")
     suspend fun deleteTurnsByWell(wellId: String)
+
+    @Query("DELETE FROM irrigation_turns WHERE id = :turnId")
+    suspend fun deleteTurn(turnId: String)
 }
 
 @Dao
