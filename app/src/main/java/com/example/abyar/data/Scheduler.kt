@@ -3,6 +3,12 @@ package com.example.abyar.data
 import java.util.UUID
 
 object Scheduler {
+    /**
+     * تولید خودکار نوبت‌بندی بر اساس سهم ساعتی مالکان
+     *
+     * قانون: هر مالک دقیقاً به اندازه سهم ساعتی خود در برنامه، زمان آبیاری می‌گیرد.
+     * مثلاً: کسی که سهمش 5 ساعت است، مجموع زمان نوبت‌هایش در برنامه = 5 ساعت.
+     */
     fun generateSchedule(
         well: Well,
         owners: List<User>,
@@ -13,15 +19,11 @@ object Scheduler {
 
         // فقط کسانی که سهم آب دارند
         val withWater = owners.filter { it.shareHours > 0.0 }
-        val totalHours = withWater.sumOf { it.shareHours }
-        if (totalHours <= 0.0) return turns
+        if (withWater.isEmpty()) return turns
 
-        val cycleDurationMs = well.cycleDurationDays * 24L * 60L * 60L * 1000L
-
+        // هر مالک دقیقاً به اندازه سهم ساعتی خود نوبت می‌گیرد
         for (owner in withWater) {
-            val shareRatio = owner.shareHours / totalHours
-            val durationMs = (cycleDurationMs * shareRatio).toLong()
-
+            val shareMs = (owner.shareHours * 60.0 * 60.0 * 1000.0).toLong()
             turns.add(
                 IrrigationTurn(
                     id = UUID.randomUUID().toString(),
@@ -29,11 +31,11 @@ object Scheduler {
                     userId = owner.id,
                     userName = owner.fullName,
                     startTime = currentTime,
-                    endTime = currentTime + durationMs,
+                    endTime = currentTime + shareMs,
                     status = "PENDING"
                 )
             )
-            currentTime += durationMs
+            currentTime += shareMs
         }
         return turns
     }
