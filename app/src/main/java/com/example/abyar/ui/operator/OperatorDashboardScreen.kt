@@ -42,6 +42,7 @@ fun OperatorDashboardScreen(
     onBack: () -> Unit,
     onManageGroups: () -> Unit,
     onFullSchedule: () -> Unit,
+    onNotify: () -> Unit,
     vm: ScheduleViewModel = viewModel()
 ) {
     val turns by vm.turns.collectAsState()
@@ -56,7 +57,6 @@ fun OperatorDashboardScreen(
 
     LaunchedEffect(wellId) { vm.loadTurns(wellId) }
 
-    // نمایش Snackbar برای خطاها
     LaunchedEffect(Unit) {
         vm.error.collect { err ->
             if (err.isNotEmpty()) {
@@ -258,13 +258,20 @@ fun OperatorDashboardScreen(
                     Spacer(Modifier.height(8.dp))
                     Row(
                         Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         BigActionCard(
                             icon = Icons.Default.CalendarMonth,
-                            title = "برنامه کامل",
+                            title = "برنامه",
                             color = AbyarBlue,
                             onClick = onFullSchedule,
+                            modifier = Modifier.weight(1f)
+                        )
+                        BigActionCard(
+                            icon = Icons.Default.Campaign,
+                            title = "اطلاع‌رسانی",
+                            color = AbyarGreen,
+                            onClick = onNotify,
                             modifier = Modifier.weight(1f)
                         )
                         BigActionCard(
@@ -282,15 +289,15 @@ fun OperatorDashboardScreen(
         }
     }
 
-    // شیت عملیات روی نوبت (با ⋮ باز می‌شود)
+    // شیت عملیات روی نوبت
     turnForActions?.let { turn ->
         TurnActionsSheet(
             turn = turn,
             phone = getPhoneFor(turn.userId),
             onDismiss = { turnForActions = null },
-            onCall = { phone -> 
+            onCall = { phone ->
                 turnForActions = null
-                callNumber(phone) 
+                callNumber(phone)
             },
             onToggle = {
                 vm.toggleTurnStatus(turn) { }
@@ -345,9 +352,6 @@ fun OperatorDashboardScreen(
     }
 }
 
-/**
- * کارت نوبت بعدی (بزرگ)
- */
 @Composable
 private fun NextTurnCard(
     turn: IrrigationTurn,
@@ -444,9 +448,6 @@ private fun NextTurnCard(
     }
 }
 
-/**
- * کارت نوبت در لیست امروز
- */
 @Composable
 private fun TodayTurnCard(
     turn: IrrigationTurn,
@@ -502,7 +503,6 @@ private fun TodayTurnCard(
                 }
             }
 
-            // دکمه تماس
             if (phone != null) {
                 IconButton(
                     onClick = { onCall(phone) },
@@ -525,7 +525,6 @@ private fun TodayTurnCard(
                 }
             }
 
-            // دکمه تیک
             IconButton(
                 onClick = onToggle,
                 modifier = Modifier.size(40.dp)
@@ -546,7 +545,6 @@ private fun TodayTurnCard(
                 }
             }
 
-            // دکمه منو
             IconButton(
                 onClick = onMoreActions,
                 modifier = Modifier.size(40.dp)
@@ -562,9 +560,6 @@ private fun TodayTurnCard(
     }
 }
 
-/**
- * شیت عملیات روی یک نوبت
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TurnActionsSheet(
@@ -582,7 +577,6 @@ private fun TurnActionsSheet(
                 .padding(20.dp)
                 .fillMaxWidth()
         ) {
-            // هدر
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     Modifier
@@ -612,7 +606,6 @@ private fun TurnActionsSheet(
             HorizontalDivider()
             Spacer(Modifier.height(8.dp))
 
-            // گزینه‌ها
             if (phone != null) {
                 ActionRow(
                     icon = Icons.Default.Phone,
@@ -698,9 +691,6 @@ private fun ActionRow(
     }
 }
 
-/**
- * کارت دکمه بزرگ پایین
- */
 @Composable
 private fun BigActionCard(
     icon: ImageVector,
@@ -710,28 +700,29 @@ private fun BigActionCard(
     modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = modifier.height(76.dp).clickable { onClick() },
+        modifier = modifier.height(86.dp).clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.12f)),
         elevation = CardDefaults.cardElevation(0.dp)
     ) {
-        Row(
-            Modifier.fillMaxSize().padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            Modifier.fillMaxSize().padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             Box(
                 Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(10.dp))
                     .background(color),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, null, tint = Color.White, modifier = Modifier.size(24.dp))
+                Icon(icon, null, tint = Color.White, modifier = Modifier.size(20.dp))
             }
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.height(4.dp))
             Text(
                 title,
-                fontSize = 15.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = color
             )
@@ -739,9 +730,6 @@ private fun BigActionCard(
     }
 }
 
-/**
- * شیت جابجایی سریع
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun QuickMoveSheet(
