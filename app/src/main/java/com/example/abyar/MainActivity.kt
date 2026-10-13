@@ -15,6 +15,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.abyar.ui.common.ComingSoonScreen
 import com.example.abyar.ui.home.HomeScreen
 import com.example.abyar.ui.home.HomeViewModel
+import com.example.abyar.ui.notify.NotifyScreen
 import com.example.abyar.ui.onboarding.OnboardingScreen
 import com.example.abyar.ui.operator.OperatorDashboardScreen
 import com.example.abyar.ui.owners.OwnersScreen
@@ -82,8 +83,6 @@ class MainActivity : ComponentActivity() {
                     val hasTurn = remember(nextTurn) { nextTurn != null }
 
                     // --------- BackHandler: مدیریت دکمه بازگشت گوشی ---------
-                    // اگر در حالت "خروج از اپ" هستیم → از BackHandler استفاده نمی‌کنیم (خروج از اپ)
-                    // اگر در صفحه داخلی هستیم → BackHandler برای بازگشت
                     val shouldHandleBack = when {
                         showOnboarding -> false
                         userNationalCode.isBlank() -> false
@@ -94,9 +93,9 @@ class MainActivity : ComponentActivity() {
 
                     if (shouldHandleBack) {
                         BackHandler {
-                            // منطق بازگشت بر اساس صفحه فعلی
                             when (currentScreen) {
                                 "groups" -> currentScreen = "operator"
+                                "notify" -> currentScreen = "operator"
                                 else -> currentScreen = "home"
                             }
                         }
@@ -240,7 +239,8 @@ class MainActivity : ComponentActivity() {
                                     wellName = well?.name ?: "",
                                     onBack = { currentScreen = "home" },
                                     onManageGroups = { currentScreen = "groups" },
-                                    onFullSchedule = { currentScreen = "schedule" }
+                                    onFullSchedule = { currentScreen = "schedule" },
+                                    onNotify = { currentScreen = "notify" }
                                 )
                             } else {
                                 ComingSoonScreen(
@@ -260,6 +260,21 @@ class MainActivity : ComponentActivity() {
                             } else {
                                 ComingSoonScreen(
                                     title = "مدیریت گروه‌ها",
+                                    onBack = { currentScreen = "home" }
+                                )
+                            }
+                        }
+
+                        currentScreen == "notify" -> {
+                            val wid = currentWellId
+                            if (wid != null) {
+                                NotifyScreen(
+                                    wellId = wid,
+                                    onBack = { currentScreen = "operator" }
+                                )
+                            } else {
+                                ComingSoonScreen(
+                                    title = "اطلاع‌رسانی",
                                     onBack = { currentScreen = "home" }
                                 )
                             }
