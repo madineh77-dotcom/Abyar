@@ -8,7 +8,6 @@ import com.example.abyar.util.jalaliToTimestamp
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import java.util.UUID
 
 data class ScheduleStats(
     val totalTurns: Int,
@@ -79,7 +78,6 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
                     pendingCount = pending
                 )
 
-                // محاسبه خلاصه هر مالک
                 val summaries = allOwners.map { owner ->
                     val userTurns = list.filter { it.userId == owner.id }
                     val totalMs = userTurns.sumOf { it.endTime - it.startTime }
@@ -175,85 +173,6 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
             )
             turnDao.insertTurns(listOf(updated))
             _info.value = "نوبت به ${newUserName} منتقل شد"
-            onSuccess()
-        }
-    }
-
-    /**
-     * شکستن نوبت به دو بخش با نقطه دلخواه
-     * مجموع دو بخش = زمان نوبت اصلی (بدون کم و زیاد شدن)
-     */
-    fun splitTurnIntoTwo(
-        turn: IrrigationTurn,
-        splitAfterHours: Double,
-        onSuccess: () -> Unit
-    ) {
-        viewModelScope.launch {
-            val totalMs = turn.endTime - turn.startTime
-            val totalHours = totalMs / (1000.0 * 60.0 * 60.0)
-
-            if (splitAfterHours <= 0.0 || splitAfterHours >= totalHours) {
-                _error.value = "زمان شکستن باید بین ۰ و ${String.format("%.1f", totalHours)} ساعت باشد"
-                return@launch
-            }
-
-            val splitMs = (splitAfterHours * 60.0 * 60.0 * 1000.0).toLong()
-            val splitTime = turn.startTime + splitMs
-
-            val firstTurn = turn.copy(
-                id = UUID.randomUUID().toString(),
-                endTime = splitTime,
-                status = "PENDING"
-            )
-            val secondTurn = turn.copy(
-                id = UUID.randomUUID().toString(),
-                startTime = splitTime,
-                status = "PENDING"
-            )
-
-            turnDao.deleteTurn(turn.id)
-            turnDao.insertTurns(listOf(firstTurn, secondTurn))
-            _info.value = "نوبت به دو بخش شکسته شد (مجموع ثابت: ${String.format("%.1f", totalHours)} ساعت)"
-            onSuccess()
-        }
-    }
-
-    /**
-     * شکستن نوبت به N بخش مساوی
-     * مجموع بخش‌ها = زمان نوبت اصلی
-     */
-    fun splitTurnIntoEqualParts(
-        turn: IrrigationTurn,
-        partsCount: Int,
-        onSuccess: () -> Unit
-    ) {
-        viewModelScope.launch {
-            if (partsCount < 2 || partsCount > 10) {
-                _error.value = "تعداد بخش‌ها باید بین ۲ و ۱۰ باشد"
-                return@launch
-            }
-
-            val totalMs = turn.endTime - turn.startTime
-            val partMs = totalMs / partsCount
-
-            if (partMs < 60_000L) {
-                _error.value = "هر بخش کمتر از ۱ دقیقه می‌شود. تعداد بخش‌ها را کم کنید."
-                return@launch
-            }
-
-            turnDao.deleteTurn(turn.id)
-            val newTurns = (0 until partsCount).map { i ->
-                turn.copy(
-                    id = UUID.randomUUID().toString(),
-                    startTime = turn.startTime + (partMs * i),
-                    endTime = if (i == partsCount - 1) turn.endTime
-                    else turn.startTime + (partMs * (i + 1)),
-                    status = "PENDING"
-                )
-            }
-            turnDao.insertTurns(newTurns)
-            val totalHours = totalMs / (1000.0 * 60.0 * 60.0)
-            _info.value = "نوبت به $partsCount بخش مساوی شکسته شد (مجموع ثابت: ${String.format("%.1f", totalHours)} ساعت)"
             onSuccess()
         }
     }
