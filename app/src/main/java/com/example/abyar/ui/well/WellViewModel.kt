@@ -1,144 +1,115 @@
-package com.example.abyar.ui.wells
+package com.example.abyar.ui.well
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.abyar.data.*
+import com.example.abyar.data.AppDatabase
+import com.example.abyar.data.Well
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.util.UUID
 import kotlin.random.Random
 
-data class WellWithShare(
-    val well: Well,
-    val shareHours: Double
-)
-
-class MyWellsViewModel(application: Application) : AndroidViewModel(application) {
+class WellViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
     private val wellDao = db.wellDao()
     private val userDao = db.userDao()
 
-    private val _myWells = MutableStateFlow<List<WellWithShare>>(emptyList())
-    val myWells: StateFlow<List<WellWithShare>> = _myWells
+    private val _well = MutableStateFlow<Well?>(null)
+    val well: StateFlow<Well?> = _well
 
     private val _error = MutableStateFlow("")
     val error: StateFlow<String> = _error
 
-    fun loadMyWells(nationalCode: String) {
+    private val _saved = MutableStateFlow(false)
+    val saved: StateFlow<Boolean> = _saved
+
+    init {
         viewModelScope.launch {
-            val userRecords = userDao.getAllByNationalCode(nationalCode)
-            val result = mutableListOf<WellWithShare>()
-            for (u in userRecords) {
-                val w = wellDao.getWellById(u.wellId)
-                if (w != null) {
-                    result.add(WellWithShare(w, u.shareHours))
-                }
-            }
-            _myWells.value = result
+            wellDao.getFirstWell().collect { _well.value = it }
         }
     }
 
     fun clearError() { _error.value = "" }
 
-    /**
-     * ایجاد چاه جدید (کاربر مدیر اصلی می‌شود)
-     */
-    fun createNewWell(
-        nationalCode: String,
-        fullName: String,
-        phone: String,
-        wellName: String,
+    fun calculateTotalHours(cycleDays: Int): Double {
+        return (cycleDays * 24).toDouble()
+    }
+
+    fun saveWell(
+        name: String,
         location: String,
-        totalHours: Double,
         cycleDays: Int,
-        myShare: Double,
-        onSuccess: (String) -> Unit
+        onSuccess: (Well) -> Unit
     ) {
         viewModelScope.launch {
             when {
-                wellName.isBlank() -> { _error.value = "نام چاه الزامی است"; return@launch }
-                totalHours <= 0 -> { _error.value = "کل ساعت آب باید بیشتر از صفر باشد"; return@launch }
+                name.isBlank() -> { _error.value = "نام چاه الزامی است"; return@launch }
                 cycleDays <= 0 -> { _error.value = "مدت مدار باید بیشتر از صفر باشد"; return@launch }
-                myShare < 0 -> { _error.value = "سهم شما نمی‌تواند منفی باشد"; return@launch }
-                myShare > totalHours -> { _error.value = "سهم شما نمی‌تواند از کل ساعت بیشتر باشد"; return@launch }
+                cycleDays > 365 -> { _error.value = "مدت مدار نمی‌تواند بیشتر از 365 روز باشد"; return@launch }
+            }
+
+            val existing = wellDao.getFirstWellSync()
+            if (existing != null) {
+                _error.value = "یک چاه قبلاً ثبت شده است"
+                return@launch
             }
 
             val code = generateUniqueCode()
-            val wellId = UUID.randomUUID().toString()
-            val well = Well(
-                id = wellId,
+            val totalHours = calculateTotalHours(cycleDays)
+            val newWell = Well(
+                id = UUID.randomUUID().toString(),
                 code = code,
-                name = wellName.trim(),
+                name = name.trim(),
                 location = location.trim().ifBlank { null },
                 totalHours = totalHours,
                 cycleDurationDays = cycleDays
             )
-            wellDao.insertWell(well)
-
-            val user = User(
-                id = UUID.randomUUID().toString(),
-                wellId = wellId,
-                fullName = fullName,
-                phone = phone,
-                nationalCode = nationalCode,
-                shareHours = myShare,
-                role = UserRole.MAIN_ADMIN
-            )
-            userDao.insertUser(user)
-
+            wellDao.insertWell(newWell)
             _error.value = ""
-            onSuccess(wellId)
+            _saved.value = true
+            onSuccess(newWell)
         }
     }
 
-    /**
-     * پیوستن به چاه موجود با کد (کاربر خرده‌مالک می‌شود)
-     */
-    fun joinWellByCode(
-        nationalCode: String,
-        fullName: String,
-        phone: String,
-        wellCode: String,
-        myShare: Double,
-        onSuccess: (String) -> Unit
+    fun updateWell(
+        wellId: String,
+        name: String,
+        location: String,
+        cycleDays: Int,
+        onSuccess: () -> Unit
     ) {
         viewModelScope.launch {
-            if (wellCode.length != 8) { _error.value = "کد چاه باید ۸ رقمی باشد"; return@launch }
-            if (myShare < 0) { _error.value = "سهم شما نمی‌تواند منفی باشد"; return@launch }
+            when {
+                name.isBlank() -> { _error.value = "نام چاه الزامی است"; return@launch }
+                cycleDays <= 0 -> { _error.value = "مدت مدار باید بیشتر از صفر باشد"; return@launch }
+                cycleDays > 365 -> { _error.value = "مدت مدار نمی‌تواند بیشتر از 365 روز باشد"; return@launch }
+            }
 
-            val well = wellDao.getWellByCode(wellCode)
-            if (well == null) {
-                _error.value = "چاهی با این کد یافت نشد"
+            val existing = wellDao.getWellById(wellId) ?: run {
+                _error.value = "چاه یافت نشد"
                 return@launch
             }
 
-            val existing = userDao.getUserByNationalCode(well.id, nationalCode)
-            if (existing != null) {
-                _error.value = "شما قبلاً در این چاه ثبت شده‌اید"
+            val newTotalHours = calculateTotalHours(cycleDays)
+            val usedHours = userDao.getTotalShareHours(wellId) ?: 0.0
+
+            if (usedHours > newTotalHours) {
+                _error.value = "مجموع سهم مالکان (${usedHours} ساعت) از کل ساعت جدید (${newTotalHours} ساعت) بیشتر است. ابتدا سهم مالکان را کاهش دهید."
                 return@launch
             }
 
-            val totalShares = userDao.getTotalShareHours(well.id) ?: 0.0
-            if (totalShares + myShare > well.totalHours) {
-                _error.value = "مجموع سهم‌ها از کل ساعت چاه (${well.totalHours}) بیشتر می‌شود"
-                return@launch
-            }
-
-            val user = User(
-                id = UUID.randomUUID().toString(),
-                wellId = well.id,
-                fullName = fullName,
-                phone = phone,
-                nationalCode = nationalCode,
-                shareHours = myShare,
-                role = UserRole.SMALL_OWNER
+            wellDao.updateWell(
+                existing.copy(
+                    name = name.trim(),
+                    location = location.trim().ifBlank { null },
+                    cycleDurationDays = cycleDays,
+                    totalHours = newTotalHours
+                )
             )
-            userDao.insertUser(user)
-
             _error.value = ""
-            onSuccess(well.id)
+            onSuccess()
         }
     }
 
