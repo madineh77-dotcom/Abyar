@@ -14,7 +14,7 @@ import androidx.room.RoomDatabase
         Transaction::class,
         Notification::class
     ],
-    version = 5,
+    version = 6, // نسخه به 6 افزایش یافت
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
