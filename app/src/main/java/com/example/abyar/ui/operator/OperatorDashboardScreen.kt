@@ -43,6 +43,7 @@ fun OperatorDashboardScreen(
     onManageGroups: () -> Unit,
     onFullSchedule: () -> Unit,
     onNotify: () -> Unit,
+    onEditProfile: () -> Unit, // دکمه جدید
     vm: ScheduleViewModel = viewModel()
 ) {
     val turns by vm.turns.collectAsState()
@@ -74,7 +75,6 @@ fun OperatorDashboardScreen(
         }
     }
 
-    // نوبت‌های امروز
     val todayTurns = remember(turns) {
         val cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Tehran"))
         cal.set(Calendar.HOUR_OF_DAY, 0)
@@ -87,7 +87,6 @@ fun OperatorDashboardScreen(
             .sortedBy { it.startTime }
     }
 
-    // نوبت بعدی
     val nextTurn = remember(turns) {
         val now = System.currentTimeMillis()
         turns.filter { it.startTime > now && it.status == "PENDING" }
@@ -146,6 +145,9 @@ fun OperatorDashboardScreen(
                     IconButton(onClick = onFullSchedule) {
                         Icon(Icons.Default.CalendarMonth, null, tint = Color.White)
                     }
+                    IconButton(onClick = onEditProfile) {
+                        Icon(Icons.Default.Person, null, tint = Color.White)
+                    }
                 }
             }
 
@@ -154,7 +156,6 @@ fun OperatorDashboardScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // کارت نوبت بعدی
                 item {
                     val nt = nextTurn
                     if (nt != null) {
@@ -176,32 +177,17 @@ fun OperatorDashboardScreen(
                                 Modifier.padding(20.dp).fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    Icons.Default.CheckCircle,
-                                    null,
-                                    tint = AbyarGreen,
-                                    modifier = Modifier.size(48.dp)
-                                )
+                                Icon(Icons.Default.CheckCircle, null, tint = AbyarGreen, modifier = Modifier.size(48.dp))
                                 Spacer(Modifier.width(16.dp))
                                 Column {
-                                    Text(
-                                        "همه نوبت‌ها انجام شده",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 17.sp,
-                                        color = AbyarGreen
-                                    )
-                                    Text(
-                                        "نوبت بعدی وجود ندارد",
-                                        fontSize = 12.sp,
-                                        color = TextSecondary
-                                    )
+                                    Text("همه نوبت‌ها انجام شده", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = AbyarGreen)
+                                    Text("نوبت بعدی وجود ندارد", fontSize = 12.sp, color = TextSecondary)
                                 }
                             }
                         }
                     }
                 }
 
-                // عنوان لیست
                 item {
                     Row(
                         Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -209,16 +195,10 @@ fun OperatorDashboardScreen(
                     ) {
                         Icon(Icons.Default.Today, null, tint = AbyarBlue, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text(
-                            "نوبت‌های امروز (${todayTurns.size})",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
+                        Text("نوبت‌های امروز (${todayTurns.size})", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                     }
                 }
 
-                // لیست نوبت‌های امروز
                 if (todayTurns.isEmpty()) {
                     item {
                         Card(
@@ -226,16 +206,8 @@ fun OperatorDashboardScreen(
                             shape = RoundedCornerShape(14.dp),
                             colors = CardDefaults.cardColors(containerColor = Color.White)
                         ) {
-                            Column(
-                                Modifier.fillMaxWidth().padding(32.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Icon(
-                                    Icons.Default.EventAvailable,
-                                    null,
-                                    tint = Color.LightGray,
-                                    modifier = Modifier.size(56.dp)
-                                )
+                            Column(Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.EventAvailable, null, tint = Color.LightGray, modifier = Modifier.size(56.dp))
                                 Spacer(Modifier.height(12.dp))
                                 Text("امروز نوبتی وجود ندارد", fontSize = 15.sp, color = TextSecondary)
                             }
@@ -253,13 +225,9 @@ fun OperatorDashboardScreen(
                     }
                 }
 
-                // دکمه‌های پایین
                 item {
                     Spacer(Modifier.height(8.dp))
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         BigActionCard(
                             icon = Icons.Default.CalendarMonth,
                             title = "برنامه",
@@ -283,37 +251,23 @@ fun OperatorDashboardScreen(
                         )
                     }
                 }
-
                 item { Spacer(Modifier.height(16.dp)) }
             }
         }
     }
 
-    // شیت عملیات روی نوبت
     turnForActions?.let { turn ->
         TurnActionsSheet(
             turn = turn,
             phone = getPhoneFor(turn.userId),
             onDismiss = { turnForActions = null },
-            onCall = { phone ->
-                turnForActions = null
-                callNumber(phone)
-            },
-            onToggle = {
-                vm.toggleTurnStatus(turn) { }
-                turnForActions = null
-            },
-            onMove = {
-                showMoveSheet = true
-            },
-            onDelete = {
-                turnToDelete = turn
-                turnForActions = null
-            }
+            onCall = { phone -> turnForActions = null; callNumber(phone) },
+            onToggle = { vm.toggleTurnStatus(turn) { }; turnForActions = null },
+            onMove = { showMoveSheet = true },
+            onDelete = { turnToDelete = turn; turnForActions = null }
         )
     }
 
-    // شیت جابجایی
     if (showMoveSheet && turnForActions != null) {
         QuickMoveSheet(
             turn = turnForActions!!,
@@ -328,26 +282,19 @@ fun OperatorDashboardScreen(
         )
     }
 
-    // دیالوگ تایید حذف
     turnToDelete?.let { turn ->
         AlertDialog(
             onDismissRequest = { turnToDelete = null },
             icon = { Icon(Icons.Default.Warning, null, tint = AbyarRed) },
             title = { Text("حذف نوبت", fontWeight = FontWeight.Bold) },
-            text = {
-                Text("آیا از حذف نوبت «${turn.userName}» از ساعت ${formatPersianTime(turn.startTime)} مطمئن هستید؟")
-            },
+            text = { Text("آیا از حذف نوبت «${turn.userName}» از ساعت ${formatPersianTime(turn.startTime)} مطمئن هستید؟") },
             confirmButton = {
                 Button(
-                    onClick = {
-                        vm.deleteTurn(turn) { turnToDelete = null }
-                    },
+                    onClick = { vm.deleteTurn(turn) { turnToDelete = null } },
                     colors = ButtonDefaults.buttonColors(containerColor = AbyarRed)
                 ) { Text("حذف") }
             },
-            dismissButton = {
-                TextButton(onClick = { turnToDelete = null }) { Text("انصراف") }
-            }
+            dismissButton = { TextButton(onClick = { turnToDelete = null }) { Text("انصراف") } }
         )
     }
 }
@@ -369,58 +316,31 @@ private fun NextTurnCard(
         Column(Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(AbyarOrange.copy(alpha = 0.15f)),
+                    Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(AbyarOrange.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Default.NotificationsActive, null, tint = AbyarOrange, modifier = Modifier.size(26.dp))
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        "نوبت بعدی",
-                        fontSize = 13.sp,
-                        color = AbyarOrange,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        turn.userName,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
+                    Text("نوبت بعدی", fontSize = 13.sp, color = AbyarOrange, fontWeight = FontWeight.Bold)
+                    Text(turn.userName, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 }
                 IconButton(onClick = onMoreActions) {
                     Icon(Icons.Default.MoreVert, null, tint = TextSecondary)
                 }
             }
-
             Spacer(Modifier.height(14.dp))
-
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.CalendarToday, null, tint = AbyarBlue, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(
-                    formatPersianDate(turn.startTime),
-                    fontSize = 14.sp,
-                    color = TextPrimary,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Text(formatPersianDate(turn.startTime), fontSize = 14.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.width(16.dp))
                 Icon(Icons.Default.Schedule, null, tint = AbyarBlue, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(
-                    "${formatPersianTime(turn.startTime)} تا ${formatPersianTime(turn.endTime)}",
-                    fontSize = 14.sp,
-                    color = TextPrimary,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Text("${formatPersianTime(turn.startTime)} تا ${formatPersianTime(turn.endTime)}", fontSize = 14.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
             }
-
             Spacer(Modifier.height(16.dp))
-
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
                     onClick = onToggle,
@@ -462,99 +382,35 @@ private fun TodayTurnCard(
     Card(
         Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isCompleted) CardGreenLight else Color.White
-        ),
+        colors = CardDefaults.cardColors(containerColor = if (isCompleted) CardGreenLight else Color.White),
         elevation = CardDefaults.cardElevation(2.dp)
     ) {
-        Row(
-            Modifier.padding(14.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                Modifier
-                    .size(5.dp, 46.dp)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(statusColor)
-            )
+        Row(Modifier.padding(14.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(5.dp, 46.dp).clip(RoundedCornerShape(3.dp)).background(statusColor))
             Spacer(Modifier.width(12.dp))
-
             Column(Modifier.weight(1f)) {
-                Text(
-                    turn.userName,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    color = TextPrimary
-                )
+                Text(turn.userName, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary)
                 Spacer(Modifier.height(2.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.Schedule,
-                        null,
-                        tint = AbyarBlue,
-                        modifier = Modifier.size(13.dp)
-                    )
+                    Icon(Icons.Default.Schedule, null, tint = AbyarBlue, modifier = Modifier.size(13.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text(
-                        "${formatPersianTime(turn.startTime)} - ${formatPersianTime(turn.endTime)}",
-                        fontSize = 12.sp,
-                        color = TextSecondary
-                    )
+                    Text("${formatPersianTime(turn.startTime)} - ${formatPersianTime(turn.endTime)}", fontSize = 12.sp, color = TextSecondary)
                 }
             }
-
             if (phone != null) {
-                IconButton(
-                    onClick = { onCall(phone) },
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Box(
-                        Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(AbyarBlue.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.Phone,
-                            null,
-                            tint = AbyarBlue,
-                            modifier = Modifier.size(18.dp)
-                        )
+                IconButton(onClick = { onCall(phone) }, modifier = Modifier.size(40.dp)) {
+                    Box(Modifier.size(36.dp).clip(CircleShape).background(AbyarBlue.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Phone, null, tint = AbyarBlue, modifier = Modifier.size(18.dp))
                     }
                 }
             }
-
-            IconButton(
-                onClick = onToggle,
-                modifier = Modifier.size(40.dp)
-            ) {
-                Box(
-                    Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(statusColor.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        if (isCompleted) Icons.Default.Undo else Icons.Default.Check,
-                        null,
-                        tint = statusColor,
-                        modifier = Modifier.size(20.dp)
-                    )
+            IconButton(onClick = onToggle, modifier = Modifier.size(40.dp)) {
+                Box(Modifier.size(36.dp).clip(CircleShape).background(statusColor.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
+                    Icon(if (isCompleted) Icons.Default.Undo else Icons.Default.Check, null, tint = statusColor, modifier = Modifier.size(20.dp))
                 }
             }
-
-            IconButton(
-                onClick = onMoreActions,
-                modifier = Modifier.size(40.dp)
-            ) {
-                Icon(
-                    Icons.Default.MoreVert,
-                    null,
-                    tint = TextSecondary,
-                    modifier = Modifier.size(22.dp)
-                )
+            IconButton(onClick = onMoreActions, modifier = Modifier.size(40.dp)) {
+                Icon(Icons.Default.MoreVert, null, tint = TextSecondary, modifier = Modifier.size(22.dp))
             }
         }
     }
@@ -572,47 +428,21 @@ private fun TurnActionsSheet(
     onDelete: () -> Unit
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            Modifier
-                .padding(20.dp)
-                .fillMaxWidth()
-        ) {
+        Column(Modifier.padding(20.dp).fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(AbyarBlue.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
-                ) {
+                Box(Modifier.size(44.dp).clip(CircleShape).background(AbyarBlue.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
                     Icon(Icons.Default.Person, null, tint = AbyarBlue)
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        turn.userName,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp
-                    )
-                    Text(
-                        "${formatPersianTime(turn.startTime)} تا ${formatPersianTime(turn.endTime)}",
-                        fontSize = 12.sp,
-                        color = TextSecondary
-                    )
+                    Text(turn.userName, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                    Text("${formatPersianTime(turn.startTime)} تا ${formatPersianTime(turn.endTime)}", fontSize = 12.sp, color = TextSecondary)
                 }
             }
-
-            Spacer(Modifier.height(16.dp))
-            HorizontalDivider()
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(16.dp)); HorizontalDivider(); Spacer(Modifier.height(8.dp))
 
             if (phone != null) {
-                ActionRow(
-                    icon = Icons.Default.Phone,
-                    color = AbyarBlue,
-                    title = "تماس با مالک",
-                    onClick = { onCall(phone) }
-                )
+                ActionRow(icon = Icons.Default.Phone, color = AbyarBlue, title = "تماس با مالک", onClick = { onCall(phone) })
             }
             ActionRow(
                 icon = if (turn.status == "COMPLETED") Icons.Default.Undo else Icons.Default.CheckCircle,
@@ -627,64 +457,28 @@ private fun TurnActionsSheet(
                 subtitle = "زمان ثابت می‌ماند، فقط مالک عوض می‌شود",
                 onClick = onMove
             )
-            ActionRow(
-                icon = Icons.Default.Delete,
-                color = AbyarRed,
-                title = "حذف نوبت",
-                subtitle = "این نوبت از برنامه پاک می‌شود",
-                onClick = onDelete
-            )
-
+            ActionRow(icon = Icons.Default.Delete, color = AbyarRed, title = "حذف نوبت", subtitle = "این نوبت از برنامه پاک می‌شود", onClick = onDelete)
             Spacer(Modifier.height(16.dp))
         }
     }
 }
 
 @Composable
-private fun ActionRow(
-    icon: ImageVector,
-    color: Color,
-    title: String,
-    subtitle: String? = null,
-    onClick: () -> Unit
-) {
+private fun ActionRow(icon: ImageVector, color: Color, title: String, subtitle: String? = null, onClick: () -> Unit) {
     Card(
-        Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .clickable { onClick() },
+        Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.08f)),
         elevation = CardDefaults.cardElevation(0.dp)
     ) {
-        Row(
-            Modifier.padding(12.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(color.copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center
-            ) {
+        Row(Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(color.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
                 Icon(icon, null, tint = color, modifier = Modifier.size(22.dp))
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(
-                    title,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = color
-                )
-                if (subtitle != null) {
-                    Text(
-                        subtitle,
-                        fontSize = 11.sp,
-                        color = TextSecondary
-                    )
-                }
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = color)
+                if (subtitle != null) { Text(subtitle, fontSize = 11.sp, color = TextSecondary) }
             }
             Icon(Icons.Default.ChevronLeft, null, tint = color)
         }
@@ -692,70 +486,30 @@ private fun ActionRow(
 }
 
 @Composable
-private fun BigActionCard(
-    icon: ImageVector,
-    title: String,
-    color: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
+private fun BigActionCard(icon: ImageVector, title: String, color: Color, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Card(
         modifier = modifier.height(86.dp).clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.12f)),
         elevation = CardDefaults.cardElevation(0.dp)
     ) {
-        Column(
-            Modifier.fillMaxSize().padding(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Box(
-                Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(color),
-                contentAlignment = Alignment.Center
-            ) {
+        Column(Modifier.fillMaxSize().padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(color), contentAlignment = Alignment.Center) {
                 Icon(icon, null, tint = Color.White, modifier = Modifier.size(20.dp))
             }
             Spacer(Modifier.height(4.dp))
-            Text(
-                title,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = color
-            )
+            Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color)
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun QuickMoveSheet(
-    turn: IrrigationTurn,
-    owners: List<User>,
-    onDismiss: () -> Unit,
-    onSelect: (String, String) -> Unit
-) {
+private fun QuickMoveSheet(turn: IrrigationTurn, owners: List<User>, onDismiss: () -> Unit, onSelect: (String, String) -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            Modifier
-                .padding(20.dp)
-                .fillMaxWidth()
-                .heightIn(max = 500.dp)
-        ) {
-            Text(
-                "جابجایی نوبت",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = AbyarBlueDark
-            )
-            Text(
-                "نوبت ${turn.userName} • ${formatPersianTime(turn.startTime)} تا ${formatPersianTime(turn.endTime)}",
-                fontSize = 12.sp,
-                color = TextSecondary
-            )
+        Column(Modifier.padding(20.dp).fillMaxWidth().heightIn(max = 500.dp)) {
+            Text("جابجایی نوبت", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AbyarBlueDark)
+            Text("نوبت ${turn.userName} • ${formatPersianTime(turn.startTime)} تا ${formatPersianTime(turn.endTime)}", fontSize = 12.sp, color = TextSecondary)
             Spacer(Modifier.height(16.dp))
             Text("انتقال به:", fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
@@ -767,39 +521,19 @@ private fun QuickMoveSheet(
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(candidates) { owner ->
                         Card(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable { onSelect(owner.id, owner.fullName) },
+                            Modifier.fillMaxWidth().clickable { onSelect(owner.id, owner.fullName) },
                             shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(containerColor = Color.White),
                             elevation = CardDefaults.cardElevation(1.dp)
                         ) {
-                            Row(
-                                Modifier.padding(12.dp).fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    Modifier
-                                        .size(38.dp)
-                                        .clip(CircleShape)
-                                        .background(AbyarBlue.copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        Icons.Default.Person,
-                                        null,
-                                        tint = AbyarBlue,
-                                        modifier = Modifier.size(20.dp)
-                                    )
+                            Row(Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(38.dp).clip(CircleShape).background(AbyarBlue.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Person, null, tint = AbyarBlue, modifier = Modifier.size(20.dp))
                                 }
                                 Spacer(Modifier.width(10.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(owner.fullName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                    Text(
-                                        "سهم: ${owner.shareHours} ساعت",
-                                        fontSize = 11.sp,
-                                        color = AbyarGreen
-                                    )
+                                    Text("سهم: ${owner.shareHours} ساعت", fontSize = 11.sp, color = AbyarGreen)
                                 }
                                 Icon(Icons.Default.ChevronLeft, null, tint = AbyarBlue)
                             }
