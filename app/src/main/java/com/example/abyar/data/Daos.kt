@@ -66,11 +66,14 @@ interface UserDao {
     @Query("SELECT * FROM users WHERE groupId = :groupId ORDER BY shareHours DESC")
     suspend fun getUsersByGroupSync(groupId: String): List<User>
 
-    @Query("SELECT * FROM users WHERE wellId = :wellId AND shareHours > 5.0 ORDER BY shareHours DESC")
-    fun getMajorOwnersByWell(wellId: String): Flow<List<User>>
+    @Query("SELECT * FROM users WHERE wellId = :wellId AND role = :role LIMIT 1")
+    suspend fun getUserByRole(wellId: String, role: String): User?
 
-    @Query("SELECT * FROM users WHERE wellId = :wellId AND groupId IS NULL")
-    fun getUsersWithoutGroup(wellId: String): Flow<List<User>>
+    @Query("SELECT * FROM users WHERE wellId = :wellId AND role = 'MAIN_ADMIN' LIMIT 1")
+    suspend fun getMainAdmin(wellId: String): User?
+
+    @Query("SELECT * FROM users WHERE wellId = :wellId AND role = 'OPERATOR' LIMIT 1")
+    suspend fun getOperator(wellId: String): User?
 
     @Query("DELETE FROM users WHERE id = :userId")
     suspend fun deleteUser(userId: String)
@@ -117,6 +120,9 @@ interface TurnDao {
     @Query("SELECT * FROM irrigation_turns WHERE wellId = :wellId AND userId = :userId AND status = 'PENDING' ORDER BY startTime ASC LIMIT 1")
     fun getNextPendingTurn(wellId: String, userId: String): Flow<IrrigationTurn?>
 
+    @Query("SELECT * FROM irrigation_turns WHERE wellId = :wellId AND userId = :userId AND status = 'PENDING' ORDER BY startTime ASC LIMIT 1")
+    suspend fun getNextPendingTurnSync(wellId: String, userId: String): IrrigationTurn?
+
     @Query("SELECT * FROM irrigation_turns WHERE wellId = :wellId AND startTime >= :dayStart AND startTime < :dayEnd ORDER BY startTime ASC")
     fun getTurnsForDateRange(wellId: String, dayStart: Long, dayEnd: Long): Flow<List<IrrigationTurn>>
 
@@ -142,8 +148,24 @@ interface TransactionDao {
 @Dao
 interface NotificationDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertLog(log: NotificationLog)
+    suspend fun insertNotification(notification: Notification)
 
-    @Query("SELECT * FROM notification_logs WHERE wellId = :wellId ORDER BY sentAt DESC LIMIT 100")
-    fun getLogsByWell(wellId: String): Flow<List<NotificationLog>>
+    @Query("""
+        SELECT * FROM notifications 
+        WHERE wellId = :wellId 
+        AND (recipientUserId = :userId OR (recipientGroupId IS NOT NULL AND recipientGroupId = :groupId))
+        ORDER BY sentAt DESC LIMIT 20
+    """)
+    fun getNotificationsForUser(wellId: String, userId: String, groupId: String?): Flow<List<Notification>>
+
+    @Query("""
+        SELECT * FROM notifications 
+        WHERE wellId = :wellId 
+        AND (recipientUserId = :userId OR (recipientGroupId IS NOT NULL AND recipientGroupId = :groupId))
+        ORDER BY sentAt DESC LIMIT 20
+    """)
+    suspend fun getNotificationsForUserSync(wellId: String, userId: String, groupId: String?): List<Notification>
+
+    @Query("UPDATE notifications SET isRead = 1 WHERE id = :notificationId")
+    suspend fun markAsRead(notificationId: String)
 }
