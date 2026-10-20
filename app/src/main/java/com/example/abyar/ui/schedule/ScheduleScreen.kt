@@ -28,8 +28,6 @@ import com.example.abyar.data.IrrigationTurn
 import com.example.abyar.data.User
 import com.example.abyar.ui.theme.*
 import com.example.abyar.util.*
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,7 +44,6 @@ fun ScheduleScreen(
     val info by vm.info.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
 
     var showGenerateDialog by remember { mutableStateOf(false) }
     var showClearDialog by remember { mutableStateOf(false) }
@@ -54,12 +51,11 @@ fun ScheduleScreen(
     var searchQuery by remember { mutableStateOf("") }
     var actionTurn by remember { mutableStateOf<IrrigationTurn?>(null) }
     var showMoveSheet by remember { mutableStateOf(false) }
-    var showSplitSheet by remember { mutableStateOf(false) }
+    var turnToDelete by remember { mutableStateOf<IrrigationTurn?>(null) }
     var showSummary by remember { mutableStateOf(false) }
 
     LaunchedEffect(wellId) { vm.loadTurns(wellId) }
 
-    // نمایش پیام‌ها به صورت Snackbar
     LaunchedEffect(error) {
         if (error.isNotEmpty()) {
             snackbarHostState.showSnackbar(error, duration = SnackbarDuration.Short)
@@ -181,13 +177,13 @@ fun ScheduleScreen(
         }
     }
 
+    // شیت عملیات روی نوبت
     actionTurn?.let { turn ->
         TurnActionsSheet(
             turn = turn,
             onDismiss = { actionTurn = null },
-            onDelete = { vm.deleteTurn(turn) { actionTurn = null } },
-            onMove = { showMoveSheet = true },
-            onSplit = { showSplitSheet = true }
+            onDelete = { turnToDelete = turn; actionTurn = null },
+            onMove = { showMoveSheet = true }
         )
     }
 
@@ -215,25 +211,6 @@ fun ScheduleScreen(
         )
     }
 
-    if (showSplitSheet && actionTurn != null) {
-        SplitTurnSheet(
-            currentTurn = actionTurn!!,
-            onDismiss = { showSplitSheet = false; actionTurn = null },
-            onSplitTwo = { hours ->
-                vm.splitTurnIntoTwo(actionTurn!!, hours) {
-                    showSplitSheet = false
-                    actionTurn = null
-                }
-            },
-            onSplitEqual = { parts ->
-                vm.splitTurnIntoEqualParts(actionTurn!!, parts) {
-                    showSplitSheet = false
-                    actionTurn = null
-                }
-            }
-        )
-    }
-
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
@@ -248,6 +225,24 @@ fun ScheduleScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showClearDialog = false }) { Text("انصراف") }
+            }
+        )
+    }
+
+    turnToDelete?.let { turn ->
+        AlertDialog(
+            onDismissRequest = { turnToDelete = null },
+            icon = { Icon(Icons.Default.Warning, null, tint = AbyarRed) },
+            title = { Text("حذف نوبت", fontWeight = FontWeight.Bold) },
+            text = { Text("آیا از حذف نوبت «${turn.userName}» مطمئن هستید؟") },
+            confirmButton = {
+                Button(
+                    onClick = { vm.deleteTurn(turn) { turnToDelete = null } },
+                    colors = ButtonDefaults.buttonColors(containerColor = AbyarRed)
+                ) { Text("حذف") }
+            },
+            dismissButton = {
+                TextButton(onClick = { turnToDelete = null }) { Text("انصراف") }
             }
         )
     }
@@ -516,7 +511,7 @@ private fun EmptyState() {
     }
 }
 
-// ==================== Bottom Sheets ====================
+// ==================== Bottom Sheet عملیات ====================
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -524,8 +519,7 @@ private fun TurnActionsSheet(
     turn: IrrigationTurn,
     onDismiss: () -> Unit,
     onDelete: () -> Unit,
-    onMove: () -> Unit,
-    onSplit: () -> Unit
+    onMove: () -> Unit
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -547,10 +541,9 @@ private fun TurnActionsSheet(
                 }
             }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
             ActionItem(Icons.Default.SwapHoriz, AbyarOrange, "جابجایی نوبت",
                 "انتقال این نوبت به مالک دیگر (زمان ثابت)", onMove)
-            ActionItem(Icons.Default.ContentCut, AbyarPurple, "شکستن نوبت",
-                "تقسیم این نوبت به دو یا چند بخش (مجموع ثابت)", onSplit)
             ActionItem(Icons.Default.Delete, AbyarRed, "حذف نوبت",
                 "حذف کامل این نوبت از برنامه", onDelete)
             Spacer(Modifier.height(20.dp))
@@ -588,6 +581,8 @@ private fun ActionItem(
         }
     }
 }
+
+// ==================== شیت جابجایی ====================
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -642,119 +637,7 @@ private fun MoveTurnSheet(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SplitTurnSheet(
-    currentTurn: IrrigationTurn,
-    onDismiss: () -> Unit,
-    onSplitTwo: (Double) -> Unit,
-    onSplitEqual: (Int) -> Unit
-) {
-    var mode by remember { mutableStateOf("TWO") }
-    var splitHours by remember { mutableStateOf("") }
-    var partsCount by remember { mutableStateOf("2") }
-
-    val totalMs = currentTurn.endTime - currentTurn.startTime
-    val totalHours = totalMs / (1000.0 * 60.0 * 60.0)
-
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            Modifier.padding(20.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text("شکستن نوبت", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AbyarBlueDark)
-            Text("نوبت ${currentTurn.userName} • مدت کل: ${String.format("%.1f", totalHours)} ساعت",
-                fontSize = 13.sp, color = TextSecondary)
-
-            Card(colors = CardDefaults.cardColors(containerColor = CardBlueLight), shape = RoundedCornerShape(10.dp)) {
-                Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Info, null, tint = AbyarBlue, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("مجموع بخش‌ها پس از شکستن، دقیقاً برابر با ${String.format("%.1f", totalHours)} ساعت خواهد بود.",
-                        fontSize = 11.sp, color = AbyarBlue, fontWeight = FontWeight.SemiBold)
-                }
-            }
-            Spacer(Modifier.height(4.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = mode == "TWO",
-                    onClick = { mode = "TWO" },
-                    label = { Text("دو بخش دلخواه", fontSize = 12.sp) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = AbyarPurple,
-                        selectedLabelColor = Color.White
-                    )
-                )
-                FilterChip(
-                    selected = mode == "EQUAL",
-                    onClick = { mode = "EQUAL" },
-                    label = { Text("چند بخش مساوی", fontSize = 12.sp) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = AbyarPurple,
-                        selectedLabelColor = Color.White
-                    )
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-
-            if (mode == "TWO") {
-                Text("بخش اول چند ساعت باشد؟", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                OutlinedTextField(
-                    value = splitHours, onValueChange = { splitHours = it },
-                    label = { Text("مثلاً 2") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-                Text("حداکثر: ${String.format("%.1f", totalHours)} ساعت (بخش دوم: ${String.format("%.1f", totalHours - (splitHours.toDoubleOrNull() ?: 0.0))} ساعت)",
-                    fontSize = 11.sp, color = TextSecondary)
-                Spacer(Modifier.height(8.dp))
-                Button(
-                    onClick = {
-                        val h = splitHours.toDoubleOrNull() ?: 0.0
-                        if (h > 0 && h < totalHours) onSplitTwo(h)
-                    },
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AbyarPurple),
-                    enabled = splitHours.isNotBlank()
-                ) {
-                    Icon(Icons.Default.ContentCut, null, tint = Color.White)
-                    Spacer(Modifier.width(8.dp))
-                    Text("شکستن به دو بخش", fontWeight = FontWeight.Bold)
-                }
-            } else {
-                Text("تعداد بخش‌های مساوی:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                OutlinedTextField(
-                    value = partsCount, onValueChange = { if (it.length <= 2) partsCount = it },
-                    label = { Text("مثلاً 3") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-                Text("هر بخش حدود ${String.format("%.1f", totalHours / (partsCount.toIntOrNull() ?: 2))} ساعت می‌شود",
-                    fontSize = 11.sp, color = TextSecondary)
-                Spacer(Modifier.height(8.dp))
-                Button(
-                    onClick = {
-                        val n = partsCount.toIntOrNull() ?: 0
-                        if (n in 2..10) onSplitEqual(n)
-                    },
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AbyarPurple),
-                    enabled = partsCount.isNotBlank()
-                ) {
-                    Icon(Icons.Default.ContentCut, null, tint = Color.White)
-                    Spacer(Modifier.width(8.dp))
-                    Text("شکستن به بخش‌های مساوی", fontWeight = FontWeight.Bold)
-                }
-            }
-            Spacer(Modifier.height(24.dp))
-        }
-    }
-}
+// ==================== دیالوگ تولید ====================
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -788,36 +671,36 @@ private fun GenerateDialog(
                 Text("تاریخ شروع مدار را وارد کنید:", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                  value = day,
-                  onValueChange = { 
-                    val converted = com.example.abyar.util.toEnglishDigits(it)
-                    if (converted.length <= 2 && converted.all { c -> c.isDigit() }) day = converted 
-                 },
-                 label = { Text("روز", fontSize = 11.sp) },
-                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                 modifier = Modifier.weight(1f), singleLine = true, shape = RoundedCornerShape(12.dp)
-                )
-                OutlinedTextField(
-                  value = month,
-                  onValueChange = { 
-                    val converted = com.example.abyar.util.toEnglishDigits(it)
-                    if (converted.length <= 2 && converted.all { c -> c.isDigit() }) month = converted 
-                 },
-                 label = { Text("ماه", fontSize = 11.sp) },
-                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                 modifier = Modifier.weight(1f), singleLine = true, shape = RoundedCornerShape(12.dp)
-                )
-OutlinedTextField(
-    value = year,
-    onValueChange = { 
-        val converted = com.example.abyar.util.toEnglishDigits(it)
-        if (converted.length <= 4 && converted.all { c -> c.isDigit() }) year = converted 
-    },
-    label = { Text("سال", fontSize = 11.sp) },
-    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-    modifier = Modifier.weight(1.3f), singleLine = true, shape = RoundedCornerShape(12.dp)
-)
+                    OutlinedTextField(
+                        value = day,
+                        onValueChange = {
+                            val c = toEnglishDigits(it)
+                            if (c.length <= 2 && c.all { ch -> ch.isDigit() }) day = c
+                        },
+                        label = { Text("روز", fontSize = 11.sp) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f), singleLine = true, shape = RoundedCornerShape(12.dp)
+                    )
+                    OutlinedTextField(
+                        value = month,
+                        onValueChange = {
+                            val c = toEnglishDigits(it)
+                            if (c.length <= 2 && c.all { ch -> ch.isDigit() }) month = c
+                        },
+                        label = { Text("ماه", fontSize = 11.sp) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f), singleLine = true, shape = RoundedCornerShape(12.dp)
+                    )
+                    OutlinedTextField(
+                        value = year,
+                        onValueChange = {
+                            val c = toEnglishDigits(it)
+                            if (c.length <= 4 && c.all { ch -> ch.isDigit() }) year = c
+                        },
+                        label = { Text("سال", fontSize = 11.sp) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1.3f), singleLine = true, shape = RoundedCornerShape(12.dp)
+                    )
                 }
                 Spacer(Modifier.height(8.dp))
                 Text("مثال: امروز = ${today.first}/${today.second}/${today.third}", fontSize = 11.sp, color = TextSecondary)
