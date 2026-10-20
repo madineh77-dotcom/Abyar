@@ -18,9 +18,9 @@ data class OwnersStats(
 
 data class GroupedOwners(
     val mainAdmin: User?,
-    val groupLeaders: List<User>,
+    val majorOwners: List<User>,
     val smallOwners: List<User>,
-    val operatorsAndAbyars: List<User>
+    val operators: List<User>
 )
 
 class OwnersViewModel(application: Application) : AndroidViewModel(application) {
@@ -46,7 +46,6 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
             val well = wellDao.getWellById(wellId) ?: return@launch
             val allUsers = userDao.getUsersByWellSync(wellId)
 
-            // آمار: کل ساعت تخصیص‌یافته فقط از مالکان (بدون موتوربان/آبیار که سهم 0 دارند)
             val allocated = allUsers.sumOf { it.shareHours }
             _stats.value = OwnersStats(
                 totalHours = well.totalHours,
@@ -55,43 +54,30 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
                 totalOwners = allUsers.count { it.shareHours > 0 }
             )
 
-            // گروه‌بندی بر اساس نقش
             val mainAdmin = allUsers.find { it.role == UserRole.MAIN_ADMIN }
-            val groupLeaders = allUsers.filter { it.role == UserRole.GROUP_LEADER }
-                .sortedByDescending { it.shareHours }
-            val smallOwners = allUsers.filter { it.role == UserRole.SMALL_OWNER }
-                .sortedByDescending { it.shareHours }
-            val operatorsAndAbyars = allUsers.filter {
-                it.role == UserRole.OPERATOR || it.role == UserRole.ABYAR
-            }
+            val majorOwners = allUsers.filter { it.role == UserRole.MAJOR_OWNER }.sortedByDescending { it.shareHours }
+            val smallOwners = allUsers.filter { it.role == UserRole.SMALL_OWNER }.sortedByDescending { it.shareHours }
+            val operators = allUsers.filter { it.role == UserRole.OPERATOR }
 
-            _grouped.value = GroupedOwners(
-                mainAdmin = mainAdmin,
-                groupLeaders = groupLeaders,
-                smallOwners = smallOwners,
-                operatorsAndAbyars = operatorsAndAbyars
-            )
+            _grouped.value = GroupedOwners(mainAdmin, majorOwners, smallOwners, operators)
         }
     }
 
-    fun addOwner(
+    fun saveUser(
         wellId: String,
+        existingUser: User?,
         fullName: String,
         phone: String,
         nationalCode: String,
         shareHours: Double,
         role: UserRole,
+        isGroupLeader: Boolean,
         operatorWageType: WageType?,
         operatorWageAmount: Double,
-        abyarWageType: WageType?,
-        abyarWageAmount: Double,
         onSuccess: () -> Unit
     ) {
         viewModelScope.launch {
-            val well = wellDao.getWellById(wellId) ?: run {
-                _error.value = "چاه یافت نشد"
-                return@launch
-            }
+            val well = wellDao.getWellById(wellId) ?: run { _error.value = "چاه یافت نشد"; return@launch }
 
             // اعتبارسنجی‌ها
             when {
@@ -101,66 +87,57 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
                 shareHours < 0 -> { _error.value = "سهم نمی‌تواند منفی باشد"; return@launch }
             }
 
-            // نقش MAIN_ADMIN فقط یکی می‌تواند وجود داشته باشد
-            if (role == UserRole.MAIN_ADMIN) {
-                val existingAdmin = userDao.getMainAdmin(wellId)
-                if (existingAdmin != null) {
-                    _error.value = "مدیر اصلی قبلاً تعیین شده است. برای تغییر، از گزینه تغییر مدیر استفاده کنید."
+            // بررسی تکراری نبودن کد ملی (اگر کاربر جدید است یا کد ملی عوض شده)
+            if (existingUser == null || existingUser.nationalCode != nationalCode) {
+                val dup = userDao.getUserByNationalCode(wellId, nationalCode)
+                if (dup != null) {
+                    _error.value = "کاربری با این کد ملی در این چاه ثبت شده است"
                     return@launch
                 }
             }
 
-            // نقش OPERATOR فقط یکی
-            if (role == UserRole.OPERATOR) {
-                val existingOp = userDao.getOperator(wellId)
-                if (existingOp != null) {
-                    _error.value = "موتوربان قبلاً تعیین شده است"
-                    return@launch
-                }
-            }
+            // بررسی مجموع سهم (با کسر سهم قبلی در صورت ویرایش)
+            val currentTotal = userDao.getTotalShareHours(wellId) ?: 0.0
+            val previousShare = existingUser?.shareHours ?: 0.0
+            val otherSharesTotal = currentTotal - previousShare
 
-            // سرگروه باید سهم > 5 داشته باشد
-            if (role == UserRole.GROUP_LEADER && shareHours <= 5.0) {
-                _error.value = "سرگروه باید سهم بیشتر از ۵ ساعت داشته باشد"
-                return@launch
-            }
-            if (role == UserRole.SMALL_OWNER && shareHours > 5.0) {
-                _error.value = "خرده‌مالک باید سهم ۵ ساعت یا کمتر داشته باشد"
+            if (otherSharesTotal + shareHours > well.totalHours) {
+                val remaining = well.totalHours - otherSharesTotal
+                _error.value = "سهم وارد شده از باقیمانده (${remaining} ساعت) بیشتر است"
                 return@launch
             }
 
-            // بررسی تکراری بودن کد ملی
-            val existing = userDao.getUserByNationalCode(wellId, nationalCode)
-            if (existing != null) {
-                _error.value = "کاربری با این کد ملی در این چاه ثبت شده است"
-                return@launch
+            if (existingUser == null) {
+                // ثبت جدید
+                val user = User(
+                    id = UUID.randomUUID().toString(),
+                    wellId = wellId,
+                    fullName = fullName.trim(),
+                    phone = phone.trim(),
+                    nationalCode = nationalCode.trim(),
+                    shareHours = shareHours,
+                    role = role,
+                    isGroupLeader = isGroupLeader,
+                    operatorWageType = if (role == UserRole.OPERATOR) operatorWageType else null,
+                    operatorWageAmount = if (role == UserRole.OPERATOR) operatorWageAmount else 0.0,
+                    groupId = null
+                )
+                userDao.insertUser(user)
+            } else {
+                // ویرایش
+                val updated = existingUser.copy(
+                    fullName = fullName.trim(),
+                    phone = phone.trim(),
+                    nationalCode = nationalCode.trim(),
+                    shareHours = shareHours,
+                    role = role,
+                    isGroupLeader = isGroupLeader,
+                    operatorWageType = if (role == UserRole.OPERATOR) operatorWageType else null,
+                    operatorWageAmount = if (role == UserRole.OPERATOR) operatorWageAmount else 0.0
+                )
+                userDao.updateUser(updated)
             }
 
-            // بررسی مجموع سهم (فقط برای نقش‌هایی که سهم دارند)
-            if (shareHours > 0) {
-                val currentTotal = userDao.getTotalShareHours(wellId) ?: 0.0
-                if (currentTotal + shareHours > well.totalHours) {
-                    val remaining = well.totalHours - currentTotal
-                    _error.value = "سهم شما از باقیمانده (${remaining} ساعت) بیشتر است"
-                    return@launch
-                }
-            }
-
-            val user = User(
-                id = UUID.randomUUID().toString(),
-                wellId = wellId,
-                fullName = fullName.trim(),
-                phone = phone.trim(),
-                nationalCode = nationalCode.trim(),
-                shareHours = shareHours,
-                role = role,
-                operatorWageType = if (role == UserRole.OPERATOR) operatorWageType else null,
-                operatorWageAmount = if (role == UserRole.OPERATOR) operatorWageAmount else 0.0,
-                abyarWageType = if (role == UserRole.ABYAR) abyarWageType else null,
-                abyarWageAmount = if (role == UserRole.ABYAR) abyarWageAmount else 0.0,
-                groupId = null
-            )
-            userDao.insertUser(user)
             _error.value = ""
             onSuccess()
         }
@@ -169,7 +146,7 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
     fun deleteOwner(user: User, onSuccess: () -> Unit) {
         viewModelScope.launch {
             if (user.role == UserRole.MAIN_ADMIN) {
-                _error.value = "مدیر اصلی قابل حذف نیست. ابتدا مدیر جدید تعیین کنید."
+                _error.value = "مدیر اصلی قابل حذف نیست"
                 return@launch
             }
             userDao.deleteUser(user.id)
