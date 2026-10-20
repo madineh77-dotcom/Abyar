@@ -26,9 +26,6 @@ class MyWellsViewModel(application: Application) : AndroidViewModel(application)
     private val _error = MutableStateFlow("")
     val error: StateFlow<String> = _error
 
-    private val _success = MutableStateFlow(false)
-    val success: StateFlow<Boolean> = _success
-
     fun loadMyWells(nationalCode: String) {
         viewModelScope.launch {
             val userRecords = userDao.getAllByNationalCode(nationalCode)
@@ -45,7 +42,9 @@ class MyWellsViewModel(application: Application) : AndroidViewModel(application)
 
     fun clearError() { _error.value = "" }
 
-    // ایجاد چاه جدید (کاربر مدیر آن می‌شود)
+    /**
+     * ایجاد چاه جدید (کاربر مدیر اصلی می‌شود)
+     */
     fun createNewWell(
         nationalCode: String,
         fullName: String,
@@ -62,7 +61,7 @@ class MyWellsViewModel(application: Application) : AndroidViewModel(application)
                 wellName.isBlank() -> { _error.value = "نام چاه الزامی است"; return@launch }
                 totalHours <= 0 -> { _error.value = "کل ساعت آب باید بیشتر از صفر باشد"; return@launch }
                 cycleDays <= 0 -> { _error.value = "مدت مدار باید بیشتر از صفر باشد"; return@launch }
-                myShare <= 0 -> { _error.value = "سهم شما باید بیشتر از صفر باشد"; return@launch }
+                myShare < 0 -> { _error.value = "سهم شما نمی‌تواند منفی باشد"; return@launch }
                 myShare > totalHours -> { _error.value = "سهم شما نمی‌تواند از کل ساعت بیشتر باشد"; return@launch }
             }
 
@@ -84,17 +83,19 @@ class MyWellsViewModel(application: Application) : AndroidViewModel(application)
                 fullName = fullName,
                 phone = phone,
                 nationalCode = nationalCode,
-                shareHours = myShare
+                shareHours = myShare,
+                role = UserRole.MAIN_ADMIN
             )
             userDao.insertUser(user)
 
             _error.value = ""
-            _success.value = true
             onSuccess(wellId)
         }
     }
 
-    // پیوستن به چاه موجود با کد
+    /**
+     * پیوستن به چاه موجود با کد (کاربر خرده‌مالک می‌شود)
+     */
     fun joinWellByCode(
         nationalCode: String,
         fullName: String,
@@ -105,7 +106,7 @@ class MyWellsViewModel(application: Application) : AndroidViewModel(application)
     ) {
         viewModelScope.launch {
             if (wellCode.length != 8) { _error.value = "کد چاه باید ۸ رقمی باشد"; return@launch }
-            if (myShare <= 0) { _error.value = "سهم شما باید بیشتر از صفر باشد"; return@launch }
+            if (myShare < 0) { _error.value = "سهم شما نمی‌تواند منفی باشد"; return@launch }
 
             val well = wellDao.getWellByCode(wellCode)
             if (well == null) {
@@ -113,14 +114,12 @@ class MyWellsViewModel(application: Application) : AndroidViewModel(application)
                 return@launch
             }
 
-            // بررسی تکراری بودن کاربر
             val existing = userDao.getUserByNationalCode(well.id, nationalCode)
             if (existing != null) {
                 _error.value = "شما قبلاً در این چاه ثبت شده‌اید"
                 return@launch
             }
 
-            // بررسی اعتبارسنجی مجموع سهم
             val totalShares = userDao.getTotalShareHours(well.id) ?: 0.0
             if (totalShares + myShare > well.totalHours) {
                 _error.value = "مجموع سهم‌ها از کل ساعت چاه (${well.totalHours}) بیشتر می‌شود"
@@ -133,12 +132,12 @@ class MyWellsViewModel(application: Application) : AndroidViewModel(application)
                 fullName = fullName,
                 phone = phone,
                 nationalCode = nationalCode,
-                shareHours = myShare
+                shareHours = myShare,
+                role = UserRole.SMALL_OWNER
             )
             userDao.insertUser(user)
 
             _error.value = ""
-            _success.value = true
             onSuccess(well.id)
         }
     }
