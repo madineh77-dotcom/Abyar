@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.abyar.data.User
+import com.example.abyar.data.UserRole
 import com.example.abyar.data.WageType
 import com.example.abyar.ui.theme.*
 import com.example.abyar.util.nationalCodeErrorMessage
@@ -45,7 +46,6 @@ fun OwnersScreen(
 
     var showAddSheet by remember { mutableStateOf(false) }
     var ownerToDelete by remember { mutableStateOf<User?>(null) }
-    var expandedMajorId by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(wellId) { vm.loadOwners(wellId) }
 
@@ -86,47 +86,54 @@ fun OwnersScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item {
-                StatsCard(stats)
-            }
+            item { StatsCard(stats) }
 
-            if (grouped.majorOwners.isNotEmpty()) {
+            // مدیر اصلی
+            grouped.mainAdmin?.let { admin ->
                 item {
-                    SectionHeader("مالکان عمده", Icons.Default.Star, AbyarBlue, grouped.majorOwners.size)
+                    SectionHeader("مدیر اصلی", Icons.Default.AdminPanelSettings, AbyarRed, 1)
                 }
-                items(grouped.majorOwners) { major ->
-                    val members = grouped.membersOfMajor[major.id] ?: emptyList()
-                    MajorOwnerCard(
-                        owner = major,
-                        memberCount = members.size,
-                        expanded = expandedMajorId == major.id,
-                        onToggle = {
-                            expandedMajorId = if (expandedMajorId == major.id) null else major.id
-                        },
-                        onDelete = { ownerToDelete = major }
-                    )
-                    if (expandedMajorId == major.id && members.isNotEmpty()) {
-                        members.forEach { member ->
-                            MemberItem(member = member, onDelete = { ownerToDelete = member })
-                        }
-                    }
-                }
-            }
-
-            if (grouped.independentSmallOwners.isNotEmpty()) {
                 item {
-                    SectionHeader(
-                        "خرده‌مالکان مستقل",
-                        Icons.Default.Person,
-                        AbyarTeal,
-                        grouped.independentSmallOwners.size
+                    PersonCard(
+                        user = admin,
+                        accentColor = AbyarRed,
+                        icon = Icons.Default.AdminPanelSettings,
+                        onDelete = null
                     )
                 }
-                items(grouped.independentSmallOwners) { small ->
-                    SmallOwnerCard(owner = small, onDelete = { ownerToDelete = small })
+            }
+
+            // سرگروه‌ها
+            if (grouped.groupLeaders.isNotEmpty()) {
+                item {
+                    SectionHeader("سرگروه‌ها", Icons.Default.Star, AbyarBlue, grouped.groupLeaders.size)
+                }
+                items(grouped.groupLeaders) { leader ->
+                    PersonCard(
+                        user = leader,
+                        accentColor = AbyarBlue,
+                        icon = Icons.Default.Star,
+                        onDelete = { ownerToDelete = leader }
+                    )
                 }
             }
 
+            // خرده‌مالکان
+            if (grouped.smallOwners.isNotEmpty()) {
+                item {
+                    SectionHeader("خرده‌مالکان", Icons.Default.Person, AbyarTeal, grouped.smallOwners.size)
+                }
+                items(grouped.smallOwners) { owner ->
+                    PersonCard(
+                        user = owner,
+                        accentColor = AbyarTeal,
+                        icon = Icons.Default.Person,
+                        onDelete = { ownerToDelete = owner }
+                    )
+                }
+            }
+
+            // موتوربان و آبیار
             if (grouped.operatorsAndAbyars.isNotEmpty()) {
                 item {
                     SectionHeader(
@@ -137,12 +144,19 @@ fun OwnersScreen(
                     )
                 }
                 items(grouped.operatorsAndAbyars) { op ->
-                    OperatorCard(owner = op, onDelete = { ownerToDelete = op })
+                    PersonCard(
+                        user = op,
+                        accentColor = AbyarPurple,
+                        icon = if (op.role == UserRole.OPERATOR) Icons.Default.Engineering else Icons.Default.Agriculture,
+                        onDelete = { ownerToDelete = op }
+                    )
                 }
             }
 
-            if (grouped.majorOwners.isEmpty() &&
-                grouped.independentSmallOwners.isEmpty() &&
+            // اگر هیچ‌کس نبود
+            if (grouped.mainAdmin == null &&
+                grouped.groupLeaders.isEmpty() &&
+                grouped.smallOwners.isEmpty() &&
                 grouped.operatorsAndAbyars.isEmpty()
             ) {
                 item {
@@ -158,8 +172,8 @@ fun OwnersScreen(
                                 modifier = Modifier.size(72.dp)
                             )
                             Spacer(Modifier.height(12.dp))
-                            Text("هنوز مالکی ثبت نشده", fontSize = 16.sp, color = TextSecondary)
-                            Text("با دکمه سبز (+) مالک جدید اضافه کنید", fontSize = 12.sp, color = Color.Gray)
+                            Text("هنوز کاربری ثبت نشده", fontSize = 16.sp, color = TextSecondary)
+                            Text("با دکمه سبز (+) کاربر جدید اضافه کنید", fontSize = 12.sp, color = Color.Gray)
                         }
                     }
                 }
@@ -170,18 +184,19 @@ fun OwnersScreen(
     if (showAddSheet) {
         AddOwnerSheet(
             remainingHours = stats.remainingHours,
+            hasMainAdmin = grouped.mainAdmin != null,
+            hasOperator = grouped.operatorsAndAbyars.any { it.role == UserRole.OPERATOR },
             onDismiss = { showAddSheet = false; vm.clearError() },
-            onSubmit = { name, phone, nc, share, isOp, opWt, opWa, isAb, abWt, abWa ->
+            onSubmit = { name, phone, nc, share, role, opWt, opWa, abWt, abWa ->
                 vm.addOwner(
                     wellId = wellId,
                     fullName = name,
                     phone = phone,
                     nationalCode = nc,
                     shareHours = share,
-                    isOperator = isOp,
+                    role = role,
                     operatorWageType = opWt,
                     operatorWageAmount = opWa,
-                    isAbyar = isAb,
                     abyarWageType = abWt,
                     abyarWageAmount = abWa
                 ) {
@@ -196,7 +211,7 @@ fun OwnersScreen(
         AlertDialog(
             onDismissRequest = { ownerToDelete = null },
             icon = { Icon(Icons.Default.Warning, null, tint = AbyarRed) },
-            title = { Text("حذف مالک", fontWeight = FontWeight.Bold) },
+            title = { Text("حذف کاربر", fontWeight = FontWeight.Bold) },
             text = {
                 Column {
                     Text("آیا از حذف «${owner.fullName}» مطمئن هستید؟")
@@ -233,8 +248,6 @@ fun OwnersScreen(
     }
 }
 
-// =============== کامپوننت‌ها ===============
-
 @Composable
 private fun StatsCard(stats: OwnersStats) {
     Card(
@@ -251,9 +264,9 @@ private fun StatsCard(stats: OwnersStats) {
             }
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatBox("کل ساعت", "${stats.totalHours}", AbyarBlue, Modifier.weight(1f))
-                StatBox("تخصیص‌یافته", "${stats.allocatedHours}", AbyarGreen, Modifier.weight(1f))
-                StatBox("باقیمانده", "${stats.remainingHours}", AbyarOrange, Modifier.weight(1f))
+                StatBox("کل ساعت", "${stats.totalHours.toInt()}", AbyarBlue, Modifier.weight(1f))
+                StatBox("تخصیص‌یافته", "${stats.allocatedHours.toInt()}", AbyarGreen, Modifier.weight(1f))
+                StatBox("باقیمانده", "${stats.remainingHours.toInt()}", AbyarOrange, Modifier.weight(1f))
             }
             Spacer(Modifier.height(8.dp))
             LinearProgressIndicator(
@@ -267,7 +280,7 @@ private fun StatsCard(stats: OwnersStats) {
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                "تعداد مالکان: ${stats.totalOwners}",
+                "تعداد مالکان با سهم: ${stats.totalOwners}",
                 fontSize = 12.sp,
                 color = TextSecondary
             )
@@ -302,205 +315,146 @@ private fun SectionHeader(
 }
 
 @Composable
-private fun MajorOwnerCard(
-    owner: User,
-    memberCount: Int,
-    expanded: Boolean,
-    onToggle: () -> Unit,
-    onDelete: () -> Unit
+private fun PersonCard(
+    user: User,
+    accentColor: Color,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onDelete: (() -> Unit)?
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onToggle() },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = CardBlueLight),
-        elevation = CardDefaults.cardElevation(3.dp)
-    ) {
-        Row(
-            Modifier.padding(14.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(AbyarBlue),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.Star, null, tint = Color.White, modifier = Modifier.size(26.dp))
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(owner.fullName, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = AbyarBlueDark)
-                Text("سهم: ${owner.shareHours} ساعت", fontSize = 12.sp, color = AbyarBlue)
-                if (memberCount > 0) {
-                    Text("$memberCount زیرمجموعه", fontSize = 11.sp, color = TextSecondary)
-                }
-            }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, null, tint = AbyarRed)
-            }
-            Icon(
-                if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                null,
-                tint = AbyarBlue
-            )
-        }
-    }
-}
-
-@Composable
-private fun MemberItem(member: User, onDelete: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(start = 32.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(1.dp)
-    ) {
-        Row(
-            Modifier.padding(12.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(AbyarTeal.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.Person, null, tint = AbyarTeal, modifier = Modifier.size(20.dp))
-            }
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(member.fullName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                Text("${member.shareHours} ساعت", fontSize = 11.sp, color = AbyarTeal)
-            }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, null, tint = AbyarRed, modifier = Modifier.size(20.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun SmallOwnerCard(owner: User, onDelete: () -> Unit) {
-    Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(2.dp)
     ) {
-        Row(
-            Modifier.padding(14.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(CardGreenLight),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.Person, null, tint = AbyarGreen)
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(owner.fullName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text(owner.phone, fontSize = 11.sp, color = TextSecondary)
-                Text(
-                    "${owner.shareHours} ساعت",
-                    fontSize = 12.sp,
-                    color = AbyarGreen,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, null, tint = AbyarRed)
-            }
-        }
-    }
-}
-
-@Composable
-private fun OperatorCard(owner: User, onDelete: () -> Unit) {
-    val roleText = when {
-        owner.isOperator && owner.isAbyar -> "موتوربان و آبیار"
-        owner.isOperator -> "موتوربان"
-        else -> "آبیار"
-    }
-    val wageText = when {
-        owner.isOperator -> wageDescription(owner.operatorWageType, owner.operatorWageAmount)
-        owner.isAbyar -> wageDescription(owner.abyarWageType, owner.abyarWageAmount)
-        else -> ""
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF3E5F5)),
-        elevation = CardDefaults.cardElevation(2.dp)
-    ) {
-        Row(
-            Modifier.padding(14.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(AbyarPurple),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.Engineering, null, tint = Color.White)
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(owner.fullName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text(roleText, fontSize = 12.sp, color = AbyarPurple, fontWeight = FontWeight.SemiBold)
-                if (wageText.isNotEmpty()) {
-                    Text(wageText, fontSize = 11.sp, color = TextSecondary)
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(accentColor.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, null, tint = accentColor, modifier = Modifier.size(24.dp))
                 }
-                if (owner.shareHours > 0) {
-                    Text("سهم آب: ${owner.shareHours} ساعت", fontSize = 11.sp, color = AbyarBlue)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(user.fullName, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text(user.phone, fontSize = 11.sp, color = TextSecondary)
+                    Text(
+                        user.roleLabel,
+                        fontSize = 11.sp,
+                        color = accentColor,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    if (user.shareHours > 0) {
+                        Text(
+                            "${user.shareHours} ساعت",
+                            fontSize = 13.sp,
+                            color = accentColor,
+                            fontWeight = FontWeight.Bold
+                        )
+                    } else {
+                        Text(
+                            "بدون سهم",
+                            fontSize = 10.sp,
+                            color = Color.Gray
+                        )
+                    }
+                }
+                if (onDelete != null) {
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Default.Delete, null, tint = AbyarRed, modifier = Modifier.size(20.dp))
+                    }
                 }
             }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, null, tint = AbyarRed)
+
+            // نمایش دستمزد اگر موتوربان یا آبیار است
+            if (user.role == UserRole.OPERATOR && user.operatorWageType != null) {
+                Spacer(Modifier.height(6.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Payments, null, tint = AbyarOrange, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "دستمزد: ${wageDescription(user.operatorWageType, user.operatorWageAmount)}",
+                        fontSize = 11.sp,
+                        color = AbyarOrange
+                    )
+                }
+            }
+            if (user.role == UserRole.ABYAR && user.abyarWageType != null) {
+                Spacer(Modifier.height(6.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Payments, null, tint = AbyarOrange, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "دستمزد: ${wageDescription(user.abyarWageType, user.abyarWageAmount)}",
+                        fontSize = 11.sp,
+                        color = AbyarOrange
+                    )
+                }
             }
         }
     }
 }
 
 private fun wageDescription(type: WageType?, amount: Double): String = when (type) {
-    WageType.CASH -> "دستمزد نقدی: $amount تومان"
-    WageType.FROM_TOTAL -> "کسر از کل چاه: $amount ساعت"
-    WageType.FROM_OWN_SHARE -> "کسر از سهم خودش: $amount ساعت"
+    WageType.CASH -> "$amount تومان نقدی"
+    WageType.FROM_TOTAL -> "$amount ساعت از کل چاه"
+    WageType.FROM_OWN_SHARE -> "$amount ساعت از سهم خودش"
     null -> ""
 }
-
-// =============== شیت افزودن مالک ===============
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddOwnerSheet(
     remainingHours: Double,
+    hasMainAdmin: Boolean,
+    hasOperator: Boolean,
     onDismiss: () -> Unit,
     onSubmit: (
         name: String, phone: String, nc: String, share: Double,
-        isOp: Boolean, opWt: WageType?, opWa: Double,
-        isAb: Boolean, abWt: WageType?, abWa: Double
+        role: UserRole,
+        opWt: WageType?, opWa: Double,
+        abWt: WageType?, abWa: Double
     ) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var nc by remember { mutableStateOf("") }
     var share by remember { mutableStateOf("") }
-    var isOp by remember { mutableStateOf(false) }
-    var isAb by remember { mutableStateOf(false) }
+    var role by remember { mutableStateOf(UserRole.SMALL_OWNER) }
     var opWageType by remember { mutableStateOf(WageType.CASH) }
     var opWageAmount by remember { mutableStateOf("") }
     var abWageType by remember { mutableStateOf(WageType.CASH) }
     var abWageAmount by remember { mutableStateOf("") }
     var localError by remember { mutableStateOf("") }
+
+    val availableRoles = remember(hasMainAdmin, hasOperator) {
+        val list = mutableListOf<UserRole>()
+        if (!hasMainAdmin) list.add(UserRole.MAIN_ADMIN)
+        list.add(UserRole.GROUP_LEADER)
+        list.add(UserRole.SMALL_OWNER)
+        if (!hasOperator) list.add(UserRole.OPERATOR)
+        list.add(UserRole.ABYAR)
+        list
+    }
+
+    // اگر نقش انتخاب شده در لیست نیست، به SMALL_OWNER تغییر کند
+    LaunchedEffect(availableRoles) {
+        if (role !in availableRoles && availableRoles.isNotEmpty()) {
+            role = availableRoles.first()
+        }
+    }
+
+    val shareRequired = role == UserRole.GROUP_LEADER || role == UserRole.SMALL_OWNER
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -510,37 +464,37 @@ private fun AddOwnerSheet(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text("افزودن مالک جدید", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AbyarBlueDark)
+            Text("افزودن کاربر جدید", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AbyarBlueDark)
             Text(
-                "باقیمانده ساعت قابل تخصیص: $remainingHours ساعت",
+                "باقیمانده ساعت قابل تخصیص: ${remainingHours.toInt()} ساعت",
                 fontSize = 13.sp,
                 color = AbyarOrange,
                 fontWeight = FontWeight.SemiBold
             )
 
+            // فیلدهای اطلاعات
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
                 label = { Text("نام و نام خانوادگی *") },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
             )
-
             OutlinedTextField(
                 value = phone,
                 onValueChange = { newValue ->
                     val converted = toEnglishDigits(newValue)
-                    if (converted.length <= 11 && converted.all { it.isDigit() || it == ' ' }) {
+                    if (converted.length <= 11 && converted.all { it.isDigit() }) {
                         phone = converted
                     }
                 },
-                label = { Text("شماره تماس (11 رقمی، شروع با 0) *") },
+                label = { Text("شماره تماس (11 رقمی) *") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 singleLine = true
             )
-
             OutlinedTextField(
                 value = nc,
                 onValueChange = { newValue ->
@@ -556,23 +510,76 @@ private fun AddOwnerSheet(
                 singleLine = true
             )
 
-            OutlinedTextField(
-                value = share,
-                onValueChange = { share = toEnglishDigits(it) },
-                label = { Text("سهم ساعتی (ساعت) *") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.fillMaxWidth(),
+            // انتخاب نقش
+            Text("نقش کاربر:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Card(
+                Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                singleLine = true
-            )
-
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = isOp, onCheckedChange = { isOp = it })
-                Text("این شخص موتوربان است", fontSize = 14.sp)
+                colors = CardDefaults.cardColors(containerColor = BackgroundLight)
+            ) {
+                Column(Modifier.padding(8.dp)) {
+                    availableRoles.forEach { r ->
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clickable { role = r }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = role == r,
+                                onClick = { role = r },
+                                colors = RadioButtonDefaults.colors(selectedColor = AbyarBlue)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                when (r) {
+                                    UserRole.MAIN_ADMIN -> "مدیر اصلی"
+                                    UserRole.GROUP_LEADER -> "سرگروه (سهم بیشتر از ۵ ساعت)"
+                                    UserRole.SMALL_OWNER -> "خرده‌مالک (سهم ۵ ساعت یا کمتر)"
+                                    UserRole.OPERATOR -> "موتوربان"
+                                    UserRole.ABYAR -> "آبیار"
+                                },
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
             }
-            if (isOp) {
+
+            // فیلد سهم (فقط برای مالکان)
+            if (shareRequired) {
+                OutlinedTextField(
+                    value = share,
+                    onValueChange = { share = toEnglishDigits(it) },
+                    label = { Text("سهم ساعتی (ساعت) *") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+            } else {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = CardDefaults.cardColors(containerColor = CardOrangeLight)
+                ) {
+                    Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Info, null, tint = AbyarOrange, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "این نقش نیازی به سهم مالکیت ندارد",
+                            fontSize = 11.sp,
+                            color = AbyarOrange,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+
+            // دستمزد موتوربان
+            if (role == UserRole.OPERATOR) {
+                HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                Text("دستمزد موتوربان:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 WageSelector(
                     selected = opWageType,
                     onSelect = { opWageType = it },
@@ -581,11 +588,10 @@ private fun AddOwnerSheet(
                 )
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = isAb, onCheckedChange = { isAb = it })
-                Text("این شخص آبیار است", fontSize = 14.sp)
-            }
-            if (isAb) {
+            // دستمزد آبیار
+            if (role == UserRole.ABYAR) {
+                HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                Text("دستمزد آبیار:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 WageSelector(
                     selected = abWageType,
                     onSelect = { abWageType = it },
@@ -594,6 +600,7 @@ private fun AddOwnerSheet(
                 )
             }
 
+            // خطا
             if (localError.isNotEmpty()) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
@@ -620,18 +627,19 @@ private fun AddOwnerSheet(
                         name.isBlank() -> localError = "نام و نام خانوادگی الزامی است"
                         phoneError != null -> localError = phoneError
                         ncError != null -> localError = ncError
-                        shareValue <= 0.0 -> localError = "سهم ساعتی باید بیشتر از صفر باشد"
+                        shareRequired && shareValue <= 0.0 -> localError = "سهم ساعتی باید بیشتر از صفر باشد"
+                        role == UserRole.GROUP_LEADER && shareValue <= 5.0 -> localError = "سرگروه باید سهم بیشتر از ۵ ساعت داشته باشد"
+                        role == UserRole.SMALL_OWNER && shareValue > 5.0 -> localError = "خرده‌مالک باید سهم ۵ ساعت یا کمتر داشته باشد"
                         else -> {
                             localError = ""
                             onSubmit(
                                 name.trim(), phone.trim(), nc.trim(),
                                 shareValue,
-                                isOp,
-                                if (isOp) opWageType else null,
-                                opWageAmount.toDoubleOrNull() ?: 0.0,
-                                isAb,
-                                if (isAb) abWageType else null,
-                                abWageAmount.toDoubleOrNull() ?: 0.0
+                                role,
+                                if (role == UserRole.OPERATOR) opWageType else null,
+                                if (role == UserRole.OPERATOR) (opWageAmount.toDoubleOrNull() ?: 0.0) else 0.0,
+                                if (role == UserRole.ABYAR) abWageType else null,
+                                if (role == UserRole.ABYAR) (abWageAmount.toDoubleOrNull() ?: 0.0) else 0.0
                             )
                         }
                     }
@@ -642,7 +650,7 @@ private fun AddOwnerSheet(
             ) {
                 Icon(Icons.Default.Save, null, tint = Color.White)
                 Spacer(Modifier.width(8.dp))
-                Text("افزودن مالک", fontWeight = FontWeight.Bold)
+                Text("افزودن کاربر", fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(24.dp))
         }
@@ -656,9 +664,7 @@ private fun WageSelector(
     amount: String,
     onAmountChange: (String) -> Unit
 ) {
-    Column(Modifier.padding(start = 32.dp, top = 4.dp, bottom = 4.dp)) {
-        Text("نوع دستمزد:", fontSize = 12.sp, color = TextSecondary)
-        Spacer(Modifier.height(4.dp))
+    Column(Modifier.padding(top = 4.dp, bottom = 4.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             WageType.values().forEach { wt ->
                 FilterChip(
