@@ -5,35 +5,36 @@ import androidx.room.PrimaryKey
 
 enum class WageType { CASH, FROM_TOTAL, FROM_OWN_SHARE }
 
+enum class UserRole { MAIN_ADMIN, GROUP_LEADER, SMALL_OWNER, OPERATOR, ABYAR }
+
 /**
  * چاه کشاورزی
  */
 @Entity(tableName = "wells")
 data class Well(
     @PrimaryKey val id: String,
-    val code: String,               // کد ۸ رقمی یکتای چاه
+    val code: String,
     val name: String,
     val location: String? = null,
-    val totalHours: Double,         // کل ساعت آب
-    val cycleDurationDays: Int,     // مدت مدار (روز)
+    val totalHours: Double,
+    val cycleDurationDays: Int,
     val createdAt: Long = System.currentTimeMillis()
 )
 
 /**
- * گروه مالکان (زیر یک چاه)
- * هر گروه یک سرگروه دارد و چند عضو
+ * گروه مالکان
  */
 @Entity(tableName = "owner_groups")
 data class OwnerGroup(
     @PrimaryKey val id: String,
     val wellId: String,
-    val name: String,               // نام گروه (مثلاً «گروه آقای احمدی»)
-    val leaderId: String,           // شناسه سرگروه (کلید خارجی به User.id)
+    val name: String,
+    val leaderId: String,
     val createdAt: Long = System.currentTimeMillis()
 )
 
 /**
- * کاربر (مالک، سرگروه، موتوربان، آبیار، مدیر)
+ * کاربر (با نقش ثابت)
  */
 @Entity(tableName = "users")
 data class User(
@@ -41,24 +42,23 @@ data class User(
     val wellId: String,
     val fullName: String,
     val phone: String,
-    val nationalCode: String,        // کد ملی ۱۰ رقمی
+    val nationalCode: String,
     val shareHours: Double = 0.0,
-    val isOperator: Boolean = false,
-    val isAbyar: Boolean = false,
+    val role: UserRole = UserRole.SMALL_OWNER,
     val operatorWageType: WageType? = null,
     val operatorWageAmount: Double = 0.0,
     val abyarWageType: WageType? = null,
     val abyarWageAmount: Double = 0.0,
-    val groupId: String? = null,     // شناسه گروه (اگر در گروهی است)
+    val groupId: String? = null,
     val createdAt: Long = System.currentTimeMillis()
 ) {
     val roleLabel: String
-        get() = when {
-            shareHours > 5.0 -> "مالک عمده"
-            shareHours > 0.0 -> "خرده‌مالک"
-            isOperator -> "موتوربان"
-            isAbyar -> "آبیار"
-            else -> "کاربر"
+        get() = when (role) {
+            UserRole.MAIN_ADMIN -> "مدیر اصلی"
+            UserRole.GROUP_LEADER -> "سرگروه"
+            UserRole.SMALL_OWNER -> "خرده‌مالک"
+            UserRole.OPERATOR -> "موتوربان"
+            UserRole.ABYAR -> "آبیار"
         }
 }
 
@@ -73,7 +73,7 @@ data class IrrigationTurn(
     val userName: String,
     val startTime: Long,
     val endTime: Long,
-    val status: String              // PENDING, COMPLETED, CANCELLED
+    val status: String
 )
 
 /**
@@ -83,7 +83,7 @@ data class IrrigationTurn(
 data class Transaction(
     @PrimaryKey val id: String,
     val wellId: String,
-    val type: String,               // INCOME or EXPENSE
+    val type: String,
     val category: String,
     val amount: Long,
     val date: Long,
@@ -92,15 +92,17 @@ data class Transaction(
 )
 
 /**
- * لاگ اطلاع‌رسانی (ثبت هر پیامک ارسالی)
+ * پیام‌های اطلاع‌رسانی (جداگانه برای هر کاربر)
  */
-@Entity(tableName = "notification_logs")
-data class NotificationLog(
+@Entity(tableName = "notifications")
+data class Notification(
     @PrimaryKey val id: String,
     val wellId: String,
-    val senderId: String,           // چه کسی فرستاد
-    val targetType: String,         // ALL_LEADERS, ONE_GROUP, ONE_USER, ALL_USERS
-    val targetId: String?,          // شناسه گروه یا کاربر (اگر ONE_GROUP یا ONE_USER)
+    val senderId: String,
+    val senderName: String,
+    val recipientUserId: String?,   // برای پیام فردی
+    val recipientGroupId: String?,  // برای پیام گروهی
     val text: String,
-    val sentAt: Long = System.currentTimeMillis()
+    val sentAt: Long = System.currentTimeMillis(),
+    val isRead: Boolean = false
 )
