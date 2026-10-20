@@ -84,7 +84,6 @@ class MainActivity : ComponentActivity() {
                     }
                     val hasTurn = remember(nextTurn) { nextTurn != null }
 
-                    // BackHandler: بازگشت از صفحات داخلی به home
                     val shouldHandleBack = when {
                         showOnboarding -> false
                         userNationalCode.isBlank() -> false
@@ -150,10 +149,11 @@ class MainActivity : ComponentActivity() {
                                         onBack = { },
                                         onManageGroups = { currentScreen = "groups" },
                                         onFullSchedule = { currentScreen = "schedule" },
-                                        onNotify = { currentScreen = "notify" }
+                                        onNotify = { currentScreen = "notify" },
+                                        onEditProfile = { currentScreen = "profile" }
                                     )
                                 }
-                                UserRole.SMALL_OWNER, UserRole.ABYAR -> {
+                                UserRole.SMALL_OWNER -> {
                                     FarmerDashboardScreen(
                                         userName = userName,
                                         wellName = well?.name ?: "",
@@ -165,7 +165,7 @@ class MainActivity : ComponentActivity() {
                                         onEditProfile = { currentScreen = "profile" }
                                     )
                                 }
-                                UserRole.MAIN_ADMIN, UserRole.GROUP_LEADER, null -> {
+                                UserRole.MAIN_ADMIN, UserRole.MAJOR_OWNER, null -> {
                                     HomeScreen(
                                         userName = userName,
                                         phone = userPhone,
@@ -235,7 +235,7 @@ class MainActivity : ComponentActivity() {
                                 )
                             } else {
                                 ComingSoonScreen(
-                                    title = "مدیریت مالکان",
+                                    title = "مدیریت کاربران",
                                     onBack = { currentScreen = "home" }
                                 )
                             }
@@ -265,7 +265,8 @@ class MainActivity : ComponentActivity() {
                                     onBack = { currentScreen = "home" },
                                     onManageGroups = { currentScreen = "groups" },
                                     onFullSchedule = { currentScreen = "schedule" },
-                                    onNotify = { currentScreen = "notify" }
+                                    onNotify = { currentScreen = "notify" },
+                                    onEditProfile = { currentScreen = "profile" }
                                 )
                             } else {
                                 ComingSoonScreen(
@@ -318,11 +319,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun titleFor(route: String): String = when (route) {
-        "owners" -> "مدیریت مالکان"
+        "owners" -> "مدیریت کاربران"
         "schedule" -> "برنامه آبیاری"
         "finance" -> "مدیریت مالی"
         "operator" -> "پنل موتوربان"
-        "abyar" -> "پنل آبیار"
         "notify" -> "اطلاع‌رسانی"
         "contacts" -> "دفترچه تلفن"
         "rules" -> "قوانین و ضوابط"
