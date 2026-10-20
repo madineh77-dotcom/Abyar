@@ -12,9 +12,9 @@ import androidx.room.RoomDatabase
         User::class,
         IrrigationTurn::class,
         Transaction::class,
-        NotificationLog::class
+        Notification::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
