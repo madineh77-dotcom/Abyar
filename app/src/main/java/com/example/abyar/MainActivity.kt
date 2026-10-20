@@ -12,7 +12,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.abyar.data.UserRole
 import com.example.abyar.ui.common.ComingSoonScreen
+import com.example.abyar.ui.farmer.FarmerDashboardScreen
 import com.example.abyar.ui.home.HomeScreen
 import com.example.abyar.ui.home.HomeViewModel
 import com.example.abyar.ui.notify.NotifyScreen
@@ -49,7 +51,6 @@ class MainActivity : ComponentActivity() {
 
                     val homeVm: HomeViewModel = viewModel()
 
-                    // بارگذاری داده‌های چاه فعال
                     LaunchedEffect(currentWellId, userNationalCode) {
                         val wid = currentWellId
                         if (wid != null && userNationalCode.isNotBlank()) {
@@ -62,9 +63,10 @@ class MainActivity : ComponentActivity() {
                     val well by homeVm.well.collectAsState()
                     val nextTurn by homeVm.nextTurn.collectAsState()
                     val currentUser by homeVm.currentUser.collectAsState()
+                    val operator by homeVm.operator.collectAsState()
+                    val notifications by homeVm.notifications.collectAsState()
                     val wellNotFound by homeVm.wellNotFound.collectAsState()
 
-                    // اگر چاه واقعاً وجود ندارد (بعد از بارگذاری)، آن را پاک کن
                     LaunchedEffect(wellNotFound, currentWellId) {
                         if (wellNotFound && currentWellId != null) {
                             userPrefs.currentWellId = null
@@ -82,7 +84,7 @@ class MainActivity : ComponentActivity() {
                     }
                     val hasTurn = remember(nextTurn) { nextTurn != null }
 
-                    // --------- BackHandler: مدیریت دکمه بازگشت گوشی ---------
+                    // BackHandler: بازگشت از صفحات داخلی به home
                     val shouldHandleBack = when {
                         showOnboarding -> false
                         userNationalCode.isBlank() -> false
@@ -93,11 +95,7 @@ class MainActivity : ComponentActivity() {
 
                     if (shouldHandleBack) {
                         BackHandler {
-                            when (currentScreen) {
-                                "groups" -> currentScreen = "operator"
-                                "notify" -> currentScreen = "operator"
-                                else -> currentScreen = "home"
-                            }
+                            currentScreen = "home"
                         }
                     }
 
@@ -143,22 +141,49 @@ class MainActivity : ComponentActivity() {
                         }
 
                         currentScreen == "home" -> {
-                            HomeScreen(
-                                userName = userName,
-                                phone = userPhone,
-                                wellName = well?.name ?: "",
-                                wellCode = well?.code ?: "",
-                                startTurnText = startText,
-                                endTurnText = endText,
-                                hasTurn = hasTurn,
-                                userShareHours = currentUser?.shareHours ?: 0.0,
-                                onEditProfile = { currentScreen = "profile" },
-                                onSwitchWell = { currentScreen = "wells" },
-                                onPanelClick = { route ->
-                                    screenTitle = titleFor(route)
-                                    currentScreen = route
+                            val wid = currentWellId!!
+                            when (currentUser?.role) {
+                                UserRole.OPERATOR -> {
+                                    OperatorDashboardScreen(
+                                        wellId = wid,
+                                        wellName = well?.name ?: "",
+                                        onBack = { },
+                                        onManageGroups = { currentScreen = "groups" },
+                                        onFullSchedule = { currentScreen = "schedule" },
+                                        onNotify = { currentScreen = "notify" }
+                                    )
                                 }
-                            )
+                                UserRole.SMALL_OWNER, UserRole.ABYAR -> {
+                                    FarmerDashboardScreen(
+                                        userName = userName,
+                                        wellName = well?.name ?: "",
+                                        nextTurn = nextTurn,
+                                        operatorName = operator?.fullName,
+                                        operatorPhone = operator?.phone,
+                                        notifications = notifications,
+                                        onSwitchWell = { currentScreen = "wells" },
+                                        onEditProfile = { currentScreen = "profile" }
+                                    )
+                                }
+                                UserRole.MAIN_ADMIN, UserRole.GROUP_LEADER, null -> {
+                                    HomeScreen(
+                                        userName = userName,
+                                        phone = userPhone,
+                                        wellName = well?.name ?: "",
+                                        wellCode = well?.code ?: "",
+                                        startTurnText = startText,
+                                        endTurnText = endText,
+                                        hasTurn = hasTurn,
+                                        userShareHours = currentUser?.shareHours ?: 0.0,
+                                        onEditProfile = { currentScreen = "profile" },
+                                        onSwitchWell = { currentScreen = "wells" },
+                                        onPanelClick = { route ->
+                                            screenTitle = titleFor(route)
+                                            currentScreen = route
+                                        }
+                                    )
+                                }
+                            }
                         }
 
                         currentScreen == "profile" -> {
@@ -255,7 +280,7 @@ class MainActivity : ComponentActivity() {
                             if (wid != null) {
                                 com.example.abyar.ui.groups.GroupManagementScreen(
                                     wellId = wid,
-                                    onBack = { currentScreen = "operator" }
+                                    onBack = { currentScreen = "home" }
                                 )
                             } else {
                                 ComingSoonScreen(
@@ -270,7 +295,7 @@ class MainActivity : ComponentActivity() {
                             if (wid != null) {
                                 NotifyScreen(
                                     wellId = wid,
-                                    onBack = { currentScreen = "operator" }
+                                    onBack = { currentScreen = "home" }
                                 )
                             } else {
                                 ComingSoonScreen(
