@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.abyar.data.UserRole
 import com.example.abyar.ui.theme.*
 
 data class HomePanel(
@@ -42,17 +43,17 @@ fun HomeScreen(
     endTurnText: String,
     hasTurn: Boolean,
     userShareHours: Double,
+    userRole: UserRole?,
     onEditProfile: () -> Unit,
     onSwitchWell: () -> Unit,
     onPanelClick: (String) -> Unit
 ) {
-    val panels = listOf(
+    val allPanels = listOf(
         HomePanel("ثبت چاه", Icons.Default.Water, AbyarBlue, "well"),
         HomePanel("مدیریت مالکان", Icons.Default.Group, AbyarGreen, "owners"),
         HomePanel("برنامه آبیاری", Icons.Default.CalendarMonth, AbyarTeal, "schedule"),
         HomePanel("مدیریت مالی", Icons.Default.AccountBalanceWallet, AbyarOrange, "finance"),
         HomePanel("پنل موتوربان", Icons.Default.Engineering, AbyarPurple, "operator"),
-    
         HomePanel("اطلاع‌رسانی", Icons.Default.Campaign, Color(0xFFD81B60), "notify"),
         HomePanel("دفترچه تلفن", Icons.Default.ContactPhone, Color(0xFF5E35B1), "contacts"),
         HomePanel("قوانین و ضوابط", Icons.Default.Gavel, Color(0xFF6D4C41), "rules"),
@@ -60,6 +61,20 @@ fun HomeScreen(
         HomePanel("تنظیمات", Icons.Default.Settings, Color(0xFF546E7A), "settings"),
         HomePanel("پشتیبانی", Icons.Default.SupportAgent, Color(0xFFC62828), "support")
     )
+
+    // فیلتر پنل‌ها بر اساس نقش
+    val panels = remember(userRole) {
+        allPanels.filter { panel ->
+            when (panel.route) {
+                // فقط مدیر اصلی
+                "well" -> userRole == UserRole.MAIN_ADMIN
+                // مدیر اصلی و مالک عمده (مالک عمده فقط مشاهده)
+                "owners" -> userRole == UserRole.MAIN_ADMIN || userRole == UserRole.MAJOR_OWNER
+                // بقیه — دسترسی فعلی حفظ می‌شود
+                else -> true
+            }
+        }
+    }
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
@@ -78,7 +93,6 @@ fun HomeScreen(
                     .padding(18.dp)
             ) {
                 Column {
-                    // ردیف پروفایل
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
@@ -104,7 +118,6 @@ fun HomeScreen(
                     HorizontalDivider(color = Color.White.copy(alpha = 0.2f))
                     Spacer(Modifier.height(10.dp))
 
-                    // ردیف چاه + تعویض
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Water, null, tint = Color.White, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
@@ -140,7 +153,6 @@ fun HomeScreen(
 
                     Spacer(Modifier.height(8.dp))
 
-                    // نوبت در دو خط
                     Row(verticalAlignment = Alignment.Top) {
                         Icon(
                             Icons.Default.Schedule,
@@ -200,7 +212,6 @@ fun HomeScreen(
             }
         }
 
-        // عنوان دسترسی سریع
         item(span = { GridItemSpan(3) }) {
             Row(
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
@@ -212,7 +223,6 @@ fun HomeScreen(
             }
         }
 
-        // کارت‌های پنل‌ها
         items(panels) { panel ->
             PanelCard(panel = panel, onClick = { onPanelClick(panel.route) })
         }
