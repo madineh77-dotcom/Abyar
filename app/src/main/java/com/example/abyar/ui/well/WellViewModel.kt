@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.abyar.data.AppDatabase
+import com.example.abyar.data.UserRole
 import com.example.abyar.data.Well
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,9 +42,15 @@ class WellViewModel(application: Application) : AndroidViewModel(application) {
         name: String,
         location: String,
         cycleDays: Int,
+        currentUserRole: UserRole?,
         onSuccess: (Well) -> Unit
     ) {
         viewModelScope.launch {
+            if (currentUserRole != UserRole.MAIN_ADMIN) {
+                _error.value = "فقط مدیر اصلی می‌تواند چاه ثبت کند"
+                return@launch
+            }
+
             when {
                 name.isBlank() -> { _error.value = "نام چاه الزامی است"; return@launch }
                 cycleDays <= 0 -> { _error.value = "مدت مدار باید بیشتر از صفر باشد"; return@launch }
@@ -78,9 +85,15 @@ class WellViewModel(application: Application) : AndroidViewModel(application) {
         name: String,
         location: String,
         cycleDays: Int,
+        currentUserRole: UserRole?,
         onSuccess: () -> Unit
     ) {
         viewModelScope.launch {
+            if (currentUserRole != UserRole.MAIN_ADMIN) {
+                _error.value = "فقط مدیر اصلی می‌تواند مشخصات چاه را ویرایش کند"
+                return@launch
+            }
+
             when {
                 name.isBlank() -> { _error.value = "نام چاه الزامی است"; return@launch }
                 cycleDays <= 0 -> { _error.value = "مدت مدار باید بیشتر از صفر باشد"; return@launch }
