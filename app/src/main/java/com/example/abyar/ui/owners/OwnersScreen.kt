@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -35,6 +34,7 @@ import com.example.abyar.util.toEnglishDigits
 @Composable
 fun OwnersScreen(
     wellId: String,
+    userRole: UserRole?,
     onBack: () -> Unit,
     vm: OwnersViewModel = viewModel()
 ) {
@@ -47,6 +47,9 @@ fun OwnersScreen(
     var showFormSheet by remember { mutableStateOf(false) }
     var userToEdit by remember { mutableStateOf<User?>(null) }
     var userToDelete by remember { mutableStateOf<User?>(null) }
+
+    val canEdit = userRole == UserRole.MAIN_ADMIN
+    val canAdd = userRole == UserRole.MAIN_ADMIN || userRole == UserRole.OPERATOR
 
     LaunchedEffect(wellId) { vm.loadOwners(wellId) }
 
@@ -71,11 +74,13 @@ fun OwnersScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { userToEdit = null; showFormSheet = true },
-                containerColor = AbyarGreen
-            ) {
-                Icon(Icons.Default.PersonAdd, null, tint = Color.White)
+            if (canAdd) {
+                FloatingActionButton(
+                    onClick = { userToEdit = null; showFormSheet = true },
+                    containerColor = AbyarGreen
+                ) {
+                    Icon(Icons.Default.PersonAdd, null, tint = Color.White)
+                }
             }
         }
     ) { padding ->
@@ -87,6 +92,66 @@ fun OwnersScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // بنر حالت مشاهده
+            if (!canAdd) {
+                item {
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = CardOrangeLight)
+                    ) {
+                        Row(
+                            Modifier.padding(12.dp).fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Visibility,
+                                null,
+                                tint = AbyarOrange,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "شما در حالت مشاهده هستید. برای ویرایش با مدیر اصلی تماس بگیرید.",
+                                fontSize = 12.sp,
+                                color = AbyarOrange,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+            }
+
+            // بنر اطلاعات برای موتوربان
+            if (userRole == UserRole.OPERATOR) {
+                item {
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = CardBlueLight)
+                    ) {
+                        Row(
+                            Modifier.padding(12.dp).fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Info,
+                                null,
+                                tint = AbyarBlue,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "شما فقط می‌توانید خرده‌مالک جدید اضافه کنید. ویرایش و حذف فقط با مدیر اصلی است.",
+                                fontSize = 12.sp,
+                                color = AbyarBlue,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+            }
+
             item { StatsCard(stats) }
 
             grouped.mainAdmin?.let { admin ->
@@ -104,7 +169,8 @@ fun OwnersScreen(
                 items(grouped.majorOwners) { owner ->
                     PersonCard(
                         user = owner, accentColor = AbyarBlue, icon = Icons.Default.Star,
-                        onEdit = { userToEdit = owner; showFormSheet = true }, onDelete = { userToDelete = owner }
+                        onEdit = if (canEdit) ({ userToEdit = owner; showFormSheet = true }) else null,
+                        onDelete = if (canEdit) ({ userToDelete = owner }) else null
                     )
                 }
             }
@@ -114,7 +180,8 @@ fun OwnersScreen(
                 items(grouped.smallOwners) { owner ->
                     PersonCard(
                         user = owner, accentColor = AbyarTeal, icon = Icons.Default.Person,
-                        onEdit = { userToEdit = owner; showFormSheet = true }, onDelete = { userToDelete = owner }
+                        onEdit = if (canEdit) ({ userToEdit = owner; showFormSheet = true }) else null,
+                        onDelete = if (canEdit) ({ userToDelete = owner }) else null
                     )
                 }
             }
@@ -124,7 +191,8 @@ fun OwnersScreen(
                 items(grouped.operators) { op ->
                     PersonCard(
                         user = op, accentColor = AbyarPurple, icon = Icons.Default.Engineering,
-                        onEdit = { userToEdit = op; showFormSheet = true }, onDelete = { userToDelete = op }
+                        onEdit = if (canEdit) ({ userToEdit = op; showFormSheet = true }) else null,
+                        onDelete = if (canEdit) ({ userToDelete = op }) else null
                     )
                 }
             }
@@ -136,7 +204,9 @@ fun OwnersScreen(
                             Icon(Icons.Default.Group, null, tint = Color.LightGray, modifier = Modifier.size(72.dp))
                             Spacer(Modifier.height(12.dp))
                             Text("هنوز کاربری ثبت نشده", fontSize = 16.sp, color = TextSecondary)
-                            Text("با دکمه سبز (+) کاربر جدید اضافه کنید", fontSize = 12.sp, color = Color.Gray)
+                            if (canAdd) {
+                                Text("با دکمه سبز (+) کاربر جدید اضافه کنید", fontSize = 12.sp, color = Color.Gray)
+                            }
                         }
                     }
                 }
@@ -147,12 +217,14 @@ fun OwnersScreen(
     if (showFormSheet) {
         UserFormSheet(
             existingUser = userToEdit,
+            currentUserRole = userRole,
             remainingHours = stats.remainingHours,
             availableLeaders = grouped.availableLeaders,
             leaderGroupMap = grouped.leaderGroupMap,
             onDismiss = { showFormSheet = false; userToEdit = null; vm.clearError() },
             onSubmit = { name, phone, nc, share, role, isLeader, grpId, opWt, opWa, incWage ->
                 vm.saveUser(
+                    currentUserRole = userRole,
                     wellId = wellId,
                     existingUser = userToEdit,
                     fullName = name,
@@ -201,7 +273,12 @@ fun OwnersScreen(
             },
             confirmButton = {
                 Button(
-                    onClick = { vm.deleteOwner(user) { userToDelete = null; vm.loadOwners(wellId) } },
+                    onClick = {
+                        vm.deleteOwner(user, currentUserRole = userRole) {
+                            userToDelete = null
+                            vm.loadOwners(wellId)
+                        }
+                    },
                     colors = ButtonDefaults.buttonColors(containerColor = AbyarRed)
                 ) { Text("حذف") }
             },
@@ -330,6 +407,7 @@ private fun wageDescription(type: WageType?, amount: Double): String = when (typ
 @Composable
 private fun UserFormSheet(
     existingUser: User?,
+    currentUserRole: UserRole?,
     remainingHours: Double,
     availableLeaders: List<User>,
     leaderGroupMap: Map<String, String>,
@@ -340,6 +418,9 @@ private fun UserFormSheet(
         opWt: WageType?, opWa: Double, incWage: Boolean
     ) -> Unit
 ) {
+    // موتوربان فقط می‌تواند SMALL_OWNER اضافه کند
+    val restrictToSmallOwner = currentUserRole == UserRole.OPERATOR
+
     var name by remember { mutableStateOf(existingUser?.fullName ?: "") }
     var phone by remember { mutableStateOf(existingUser?.phone ?: "") }
     var nc by remember { mutableStateOf(existingUser?.nationalCode ?: "") }
@@ -353,6 +434,8 @@ private fun UserFormSheet(
     var localError by remember { mutableStateOf("") }
 
     val isEditing = existingUser != null
+    val effectiveRole = if (restrictToSmallOwner) UserRole.SMALL_OWNER else role
+    val effectiveIsLeader = if (restrictToSmallOwner) false else isLeader
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -366,44 +449,63 @@ private fun UserFormSheet(
             OutlinedTextField(value = phone, onValueChange = { val c = toEnglishDigits(it); if (c.length <= 11 && c.all { ch -> ch.isDigit() }) phone = c }, label = { Text("شماره تماس (11 رقمی) *") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), singleLine = true)
             OutlinedTextField(value = nc, onValueChange = { val c = toEnglishDigits(it); if (c.length <= 10 && c.all { ch -> ch.isDigit() }) nc = c }, label = { Text("کد ملی (10 رقمی) *") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), singleLine = true)
 
-            Text("نقش مالکیت:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = BackgroundLight)) {
-                Column(Modifier.padding(8.dp)) {
-                    if (!isEditing) {
-                        Row(Modifier.fillMaxWidth().clickable { role = UserRole.MAIN_ADMIN }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = role == UserRole.MAIN_ADMIN, onClick = { role = UserRole.MAIN_ADMIN })
+            // بخش انتخاب نقش — مخفی برای موتوربان
+            if (!restrictToSmallOwner) {
+                Text("نقش مالکیت:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = BackgroundLight)) {
+                    Column(Modifier.padding(8.dp)) {
+                        if (!isEditing) {
+                            Row(Modifier.fillMaxWidth().clickable { role = UserRole.MAIN_ADMIN }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(selected = role == UserRole.MAIN_ADMIN, onClick = { role = UserRole.MAIN_ADMIN })
+                                Spacer(Modifier.width(4.dp))
+                                Text("مدیر اصلی", fontSize = 13.sp)
+                            }
+                        }
+                        Row(Modifier.fillMaxWidth().clickable { role = UserRole.MAJOR_OWNER }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = role == UserRole.MAJOR_OWNER, onClick = { role = UserRole.MAJOR_OWNER })
                             Spacer(Modifier.width(4.dp))
-                            Text("مدیر اصلی", fontSize = 13.sp)
+                            Text("مالک عمده", fontSize = 13.sp)
+                        }
+                        Row(Modifier.fillMaxWidth().clickable { role = UserRole.SMALL_OWNER }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = role == UserRole.SMALL_OWNER, onClick = { role = UserRole.SMALL_OWNER })
+                            Spacer(Modifier.width(4.dp))
+                            Text("خرده‌مالک", fontSize = 13.sp)
+                        }
+                        Row(Modifier.fillMaxWidth().clickable { role = UserRole.OPERATOR }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = role == UserRole.OPERATOR, onClick = { role = UserRole.OPERATOR })
+                            Spacer(Modifier.width(4.dp))
+                            Text("موتوربان", fontSize = 13.sp)
                         }
                     }
-                    Row(Modifier.fillMaxWidth().clickable { role = UserRole.MAJOR_OWNER }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = role == UserRole.MAJOR_OWNER, onClick = { role = UserRole.MAJOR_OWNER })
-                        Spacer(Modifier.width(4.dp))
-                        Text("مالک عمده", fontSize = 13.sp)
-                    }
-                    Row(Modifier.fillMaxWidth().clickable { role = UserRole.SMALL_OWNER }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = role == UserRole.SMALL_OWNER, onClick = { role = UserRole.SMALL_OWNER })
-                        Spacer(Modifier.width(4.dp))
-                        Text("خرده‌مالک", fontSize = 13.sp)
-                    }
-                    Row(Modifier.fillMaxWidth().clickable { role = UserRole.OPERATOR }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = role == UserRole.OPERATOR, onClick = { role = UserRole.OPERATOR })
-                        Spacer(Modifier.width(4.dp))
-                        Text("موتوربان", fontSize = 13.sp)
+                }
+            } else {
+                // نمایش نقش ثابت برای موتوربان
+                Card(
+                    Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = CardBlueLight)
+                ) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Info, null, tint = AbyarBlue, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("نقش: خرده‌مالک (فقط موتوربان می‌تواند خرده‌مالک اضافه کند)", fontSize = 12.sp, color = AbyarBlue, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = isLeader, onCheckedChange = {
-                    isLeader = it
-                    if (it) selectedGroupId = null
-                })
-                Text("این شخص سرگروه است", fontSize = 13.sp)
+            // تیک سرگروهی — مخفی برای موتوربان
+            if (!restrictToSmallOwner) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = isLeader, onCheckedChange = {
+                        isLeader = it
+                        if (it) selectedGroupId = null
+                    })
+                    Text("این شخص سرگروه است", fontSize = 13.sp)
+                }
             }
 
-            // انتخاب گروه فقط اگر سرگروه نباشد و لیست خالی نباشد
-            if (!isLeader && availableLeaders.isNotEmpty()) {
+            // اتصال به گروه — مخفی برای موتوربان
+            if (!restrictToSmallOwner && !isLeader && availableLeaders.isNotEmpty()) {
                 Text("اتصال به گروه (سرگروه):", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 var expanded by remember { mutableStateOf(false) }
                 val selectedLeaderName = availableLeaders
@@ -439,7 +541,7 @@ private fun UserFormSheet(
 
             OutlinedTextField(value = share, onValueChange = { share = toEnglishDigits(it) }, label = { Text("سهم ساعتی (ساعت) *") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), singleLine = true)
 
-            if (role == UserRole.OPERATOR) {
+            if (effectiveRole == UserRole.OPERATOR && !restrictToSmallOwner) {
                 HorizontalDivider(Modifier.padding(vertical = 4.dp))
                 Text("دستمزد موتوربان:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 WageSelector(
@@ -479,9 +581,10 @@ private fun UserFormSheet(
                             localError = ""
                             onSubmit(
                                 name.trim(), phone.trim(), nc.trim(), shareValue,
-                                role, isLeader, selectedGroupId,
-                                if (role == UserRole.OPERATOR) opWageType else null,
-                                if (role == UserRole.OPERATOR) (opWageAmount.toDoubleOrNull() ?: 0.0) else 0.0,
+                                effectiveRole, effectiveIsLeader,
+                                if (effectiveIsLeader) null else selectedGroupId,
+                                if (effectiveRole == UserRole.OPERATOR) opWageType else null,
+                                if (effectiveRole == UserRole.OPERATOR) (opWageAmount.toDoubleOrNull() ?: 0.0) else 0.0,
                                 includeWage
                             )
                         }
