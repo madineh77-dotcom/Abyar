@@ -21,7 +21,8 @@ data class GroupedOwners(
     val majorOwners: List<User>,
     val smallOwners: List<User>,
     val operators: List<User>,
-    val availableLeaders: List<User> // برای انتخاب سرگروه
+    val availableLeaders: List<User>,
+    val leaderGroupMap: Map<String, String> = emptyMap() // leaderId -> groupId
 )
 
 class OwnersViewModel(application: Application) : AndroidViewModel(application) {
@@ -33,7 +34,9 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
     private val _stats = MutableStateFlow(OwnersStats(0.0, 0.0, 0.0, 0))
     val stats: StateFlow<OwnersStats> = _stats
 
-    private val _grouped = MutableStateFlow(GroupedOwners(null, emptyList(), emptyList(), emptyList(), emptyList()))
+    private val _grouped = MutableStateFlow(
+        GroupedOwners(null, emptyList(), emptyList(), emptyList(), emptyList(), emptyMap())
+    )
     val grouped: StateFlow<GroupedOwners> = _grouped
 
     private val _error = MutableStateFlow("")
@@ -45,6 +48,7 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             val well = wellDao.getWellById(wellId) ?: return@launch
             val allUsers = userDao.getUsersByWellSync(wellId)
+            val allGroups = groupDao.getGroupsByWellSync(wellId)
 
             val allocated = allUsers.sumOf { it.shareHours }
             _stats.value = OwnersStats(
@@ -58,11 +62,21 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
             val majorOwners = allUsers.filter { it.role == UserRole.MAJOR_OWNER }.sortedByDescending { it.shareHours }
             val smallOwners = allUsers.filter { it.role == UserRole.SMALL_OWNER }.sortedByDescending { it.shareHours }
             val operators = allUsers.filter { it.role == UserRole.OPERATOR }
-            
-            // لیست کسانی که به عنوان سرگروه انتخاب شده‌اند
-            val leaders = allUsers.filter { it.isGroupLeader }
 
-            _grouped.value = GroupedOwners(mainAdmin, majorOwners, smallOwners, operators, leaders)
+            // نگاشت سرگروه -> شناسه گروه (فقط گروه‌های واقعی موجود در DB)
+            val leaderGroupMap = allGroups.associate { it.leaderId to it.id }
+
+            // فقط کسانی که سرگروه هستند و واقعاً یک گروه فعال دارند
+            val leaders = allUsers.filter { it.isGroupLeader && leaderGroupMap.containsKey(it.id) }
+
+            _grouped.value = GroupedOwners(
+                mainAdmin = mainAdmin,
+                majorOwners = majorOwners,
+                smallOwners = smallOwners,
+                operators = operators,
+                availableLeaders = leaders,
+                leaderGroupMap = leaderGroupMap
+            )
         }
     }
 
@@ -82,94 +96,85 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
         onSuccess: () -> Unit
     ) {
         viewModelScope.launch {
-            val well = wellDao.getWellById(wellId) ?: run { _error.value = "چاه یافت نشد"; return@launch }
+            val well = wellDao.getWellById(wellId) ?: run {
+                _error.value = "چاه یافت نشد"; return@launch
+            }
 
             when {
                 fullName.isBlank() -> { _error.value = "نام الزامی است"; return@launch }
                 phone.length != 11 -> { _error.value = "شماره تماس باید ۱۱ رقم باشد"; return@launch }
                 nationalCode.length != 10 -> { _error.value = "کد ملی باید ۱۰ رقم باشد"; return@launch }
                 shareHours < 0 -> { _error.value = "سهم نمی‌تواند منفی باشد"; return@launch }
+                isGroupLeader && groupId != null -> {
+                    _error.value = "سرگروه نمی‌تواند همزمان عضو گروه دیگری باشد"; return@launch
+                }
             }
 
             if (existingUser == null || existingUser.nationalCode != nationalCode) {
-                val dup = userDao.getUserByNationalCode(wellId, nationalCode)
-                if (dup != null) {
-                    _error.value = "کاربری با این کد ملی در این چاه ثبت شده است"
-                    return@launch
+                if (userDao.getUserByNationalCode(wellId, nationalCode) != null) {
+                    _error.value = "کاربری با این کد ملی در این چاه ثبت شده است"; return@launch
                 }
             }
 
-            // بررسی مجموع سهم
             val currentTotal = userDao.getTotalShareHours(wellId) ?: 0.0
             val previousShare = existingUser?.shareHours ?: 0.0
-            val otherSharesTotal = currentTotal - previousShare
-
-            if (otherSharesTotal + shareHours > well.totalHours) {
-                val remaining = well.totalHours - otherSharesTotal
-                _error.value = "سهم وارد شده از باقیمانده (${remaining} ساعت) بیشتر است"
-                return@launch
+            if ((currentTotal - previousShare) + shareHours > well.totalHours) {
+                _error.value = "سهم وارد شده از باقیمانده بیشتر است"; return@launch
             }
 
-            // اگر کاربر سرگروه شد، باید یک گروه هم برایش ساخته شود
-            var finalGroupId = groupId
+            val userId = existingUser?.id ?: UUID.randomUUID().toString()
+            val effectiveGroupId: String?
+
             if (isGroupLeader) {
-                finalGroupId = null // سرگروه در گروه خودش قرار نمی‌گیرد، بلکه گروه را می‌سازد
-                // بررسی اینکه آیا از قبل گروهی با این سرگروهی وجود دارد یا نه
-                val existingGroups = groupDao.getGroupsByWellSync(wellId)
-                val leaderGroup = existingGroups.find { it.leaderId == existingUser?.id }
-                
-                if (leaderGroup == null) {
-                    // ساخت گروه جدید برای این سرگروه
+                // اگر سرگروه است: گروه فعالش را پیدا کن یا گروه جدید بساز
+                val existingLeaderGroup = groupDao.getGroupsByWellSync(wellId)
+                    .find { it.leaderId == userId }
+                if (existingLeaderGroup != null) {
+                    effectiveGroupId = existingLeaderGroup.id
+                } else {
                     val newGroupId = UUID.randomUUID().toString()
-                    groupDao.insertGroup(OwnerGroup(
-                        id = newGroupId,
-                        wellId = wellId,
-                        name = "گروه ${fullName.trim()}",
-                        leaderId = existingUser?.id ?: UUID.randomUUID().toString() // موقت، بعدا آپدیت می‌شود
-                    ))
-                }
-            }
-
-            if (existingUser == null) {
-                val userId = UUID.randomUUID().toString()
-                val user = User(
-                    id = userId,
-                    wellId = wellId,
-                    fullName = fullName.trim(),
-                    phone = phone.trim(),
-                    nationalCode = nationalCode.trim(),
-                    shareHours = shareHours,
-                    role = role,
-                    isGroupLeader = isGroupLeader,
-                    operatorWageType = if (role == UserRole.OPERATOR) operatorWageType else null,
-                    operatorWageAmount = if (role == UserRole.OPERATOR) operatorWageAmount else 0.0,
-                    includeWageInSchedule = if (role == UserRole.OPERATOR) includeWageInSchedule else true,
-                    groupId = if (isGroupLeader) null else groupId
-                )
-                userDao.insertUser(user)
-                
-                // آپدیت گروهی که برای این سرگروه ساخته شد
-                if (isGroupLeader) {
-                    val group = groupDao.getGroupsByWellSync(wellId).find { it.leaderId == existingUser?.id }
-                    if (group != null && group.leaderId == existingUser?.id) {
-                        groupDao.updateGroup(group.copy(leaderId = userId))
-                    }
+                    groupDao.insertGroup(
+                        OwnerGroup(
+                            id = newGroupId,
+                            wellId = wellId,
+                            name = "گروه ${fullName.trim()}",
+                            leaderId = userId
+                        )
+                    )
+                    effectiveGroupId = newGroupId
                 }
             } else {
-                val updated = existingUser.copy(
-                    fullName = fullName.trim(),
-                    phone = phone.trim(),
-                    nationalCode = nationalCode.trim(),
-                    shareHours = shareHours,
-                    role = role,
-                    isGroupLeader = isGroupLeader,
-                    operatorWageType = if (role == UserRole.OPERATOR) operatorWageType else null,
-                    operatorWageAmount = if (role == UserRole.OPERATOR) operatorWageAmount else 0.0,
-                    includeWageInSchedule = if (role == UserRole.OPERATOR) includeWageInSchedule else true,
-                    groupId = if (isGroupLeader) null else groupId
-                )
-                userDao.updateUser(updated)
+                // اگر قبلاً سرگروه بوده و الان نیست، گروه قبلی حذف و اعضا آزاد شوند
+                if (existingUser != null && existingUser.isGroupLeader) {
+                    val oldGroup = groupDao.getGroupsByWellSync(wellId)
+                        .find { it.leaderId == existingUser.id }
+                    if (oldGroup != null) {
+                        userDao.getUsersByGroupSync(oldGroup.id).forEach { m ->
+                            userDao.updateUser(m.copy(groupId = null))
+                        }
+                        groupDao.deleteGroup(oldGroup.id)
+                    }
+                }
+                effectiveGroupId = groupId
             }
+
+            val user = User(
+                id = userId,
+                wellId = wellId,
+                fullName = fullName.trim(),
+                phone = phone.trim(),
+                nationalCode = nationalCode.trim(),
+                shareHours = shareHours,
+                role = role,
+                isGroupLeader = isGroupLeader,
+                operatorWageType = if (role == UserRole.OPERATOR) operatorWageType else null,
+                operatorWageAmount = if (role == UserRole.OPERATOR) operatorWageAmount else 0.0,
+                includeWageInSchedule = if (role == UserRole.OPERATOR) includeWageInSchedule else true,
+                groupId = effectiveGroupId,
+                createdAt = existingUser?.createdAt ?: System.currentTimeMillis()
+            )
+
+            if (existingUser == null) userDao.insertUser(user) else userDao.updateUser(user)
 
             _error.value = ""
             onSuccess()
@@ -182,6 +187,19 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
                 _error.value = "مدیر اصلی قابل حذف نیست"
                 return@launch
             }
+
+            // اگر سرگروه است، اعضای گروهش را آزاد کن و گروه را حذف کن
+            if (user.isGroupLeader) {
+                val leaderGroup = groupDao.getGroupsByWellSync(user.wellId)
+                    .find { it.leaderId == user.id }
+                if (leaderGroup != null) {
+                    userDao.getUsersByGroupSync(leaderGroup.id).forEach { m ->
+                        userDao.updateUser(m.copy(groupId = null))
+                    }
+                    groupDao.deleteGroup(leaderGroup.id)
+                }
+            }
+
             userDao.deleteUser(user.id)
             onSuccess()
         }
