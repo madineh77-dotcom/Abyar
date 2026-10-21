@@ -148,7 +148,7 @@ fun OwnersScreen(
         UserFormSheet(
             existingUser = userToEdit,
             remainingHours = stats.remainingHours,
-            availableLeaders = grouped.availableLeaders, // لیست سرگروه‌ها
+            availableLeaders = grouped.availableLeaders,
             onDismiss = { showFormSheet = false; userToEdit = null; vm.clearError() },
             onSubmit = { name, phone, nc, share, role, isLeader, grpId, opWt, opWa, incWage ->
                 vm.saveUser(
@@ -190,7 +190,121 @@ fun OwnersScreen(
     }
 }
 
-// (بقیه کامپوننت‌های OwnersScreen مثل StatsCard, SectionHeader, PersonCard بدون تغییر)
+@Composable
+private fun StatsCard(stats: OwnersStats) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(4.dp)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.BarChart, null, tint = AbyarBlue)
+                Spacer(Modifier.width(8.dp))
+                Text("آمار چاه", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatBox("کل ساعت", "${stats.totalHours.toInt()}", AbyarBlue, Modifier.weight(1f))
+                StatBox("تخصیص‌یافته", "${stats.allocatedHours.toInt()}", AbyarGreen, Modifier.weight(1f))
+                StatBox("باقیمانده", "${stats.remainingHours.toInt()}", AbyarOrange, Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(8.dp))
+            LinearProgressIndicator(
+                progress = { if (stats.totalHours > 0) (stats.allocatedHours / stats.totalHours).toFloat() else 0f },
+                modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+                color = AbyarGreen, trackColor = Color(0xFFE0E0E0)
+            )
+            Spacer(Modifier.height(6.dp))
+            Text("تعداد مالکان با سهم: ${stats.totalOwners}", fontSize = 12.sp, color = TextSecondary)
+        }
+    }
+}
+
+@Composable
+private fun StatBox(label: String, value: String, color: Color, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, fontSize = 11.sp, color = TextSecondary)
+        Spacer(Modifier.height(2.dp))
+        Text(value, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = color)
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, color: Color, count: Int) {
+    Row(modifier = Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = color)
+        Spacer(Modifier.width(8.dp))
+        Text("$title ($count)", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+    }
+}
+
+@Composable
+private fun PersonCard(
+    user: User,
+    accentColor: Color,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onEdit: (() -> Unit)?,
+    onDelete: (() -> Unit)?
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(accentColor.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) { Icon(icon, null, tint = accentColor, modifier = Modifier.size(24.dp)) }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(user.fullName, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        if (user.isGroupLeader) {
+                            Spacer(Modifier.width(4.dp))
+                            Icon(Icons.Default.Group, null, tint = AbyarOrange, modifier = Modifier.size(16.dp))
+                            Text(" سرگروه", fontSize = 10.sp, color = AbyarOrange)
+                        }
+                    }
+                    Text(user.phone, fontSize = 11.sp, color = TextSecondary)
+                    Text(user.roleLabel, fontSize = 11.sp, color = accentColor, fontWeight = FontWeight.SemiBold)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    if (user.shareHours > 0) {
+                        Text("${user.shareHours} ساعت", fontSize = 13.sp, color = accentColor, fontWeight = FontWeight.Bold)
+                    } else {
+                        Text("بدون سهم", fontSize = 10.sp, color = Color.Gray)
+                    }
+                }
+                if (onEdit != null) {
+                    IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, null, tint = AbyarBlue, modifier = Modifier.size(20.dp)) }
+                }
+                if (onDelete != null) {
+                    IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, null, tint = AbyarRed, modifier = Modifier.size(20.dp)) }
+                }
+            }
+            if (user.role == UserRole.OPERATOR && user.operatorWageType != null) {
+                Spacer(Modifier.height(6.dp)); HorizontalDivider(); Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Payments, null, tint = AbyarOrange, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("دستمزد: ${wageDescription(user.operatorWageType, user.operatorWageAmount)}", fontSize = 11.sp, color = AbyarOrange)
+                }
+            }
+        }
+    }
+}
+
+private fun wageDescription(type: WageType?, amount: Double): String = when (type) {
+    WageType.CASH -> "$amount تومان نقدی"
+    WageType.FROM_TOTAL -> "$amount ساعت از کل چاه"
+    WageType.FROM_OWN_SHARE -> "$amount ساعت از سهم خودش"
+    null -> ""
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -211,7 +325,7 @@ private fun UserFormSheet(
     var share by remember { mutableStateOf(existingUser?.shareHours?.toString() ?: "") }
     var role by remember { mutableStateOf(existingUser?.role ?: UserRole.SMALL_OWNER) }
     var isLeader by remember { mutableStateOf(existingUser?.isGroupLeader ?: false) }
-    var selectedGroupId by remember { mutableStateOf(existingUser?.groupId) } // گروه انتخاب شده
+    var selectedGroupId by remember { mutableStateOf(existingUser?.groupId) }
     var opWageType by remember { mutableStateOf(existingUser?.operatorWageType ?: WageType.CASH) }
     var opWageAmount by remember { mutableStateOf(existingUser?.operatorWageAmount?.toString() ?: "") }
     var includeWage by remember { mutableStateOf(existingUser?.includeWageInSchedule ?: true) }
@@ -264,11 +378,11 @@ private fun UserFormSheet(
                 Text("این شخص سرگروه است", fontSize = 13.sp)
             }
 
-            // اگر سرگروه نیست، انتخاب کند زیر نظر کدام سرگروه باشد
+            // انتخاب گروه فقط اگر سرگروه نباشد و لیست خالی نباشد
             if (!isLeader && availableLeaders.isNotEmpty()) {
                 Text("اتصال به گروه (سرگروه):", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 var expanded by remember { mutableStateOf(false) }
-                val selectedLeaderName = availableLeaders.find { it.groupId == selectedGroupId }?.fullName ?: "بدون گروه"
+                val selectedLeaderName = availableLeaders.find { it.id == selectedGroupId }?.fullName ?: "بدون گروه"
 
                 Box {
                     OutlinedButton(
@@ -335,10 +449,7 @@ private fun UserFormSheet(
                         shareValue < 0 -> localError = "سهم نمی‌تواند منفی باشد"
                         else -> {
                             localError = ""
-                            // آیدی گروهی که انتخاب کرده، در واقع آیدی سرگروه است.
-                            // ما باید آیدی گروه واقعی را پیدا کنیم.
-                            val actualGroupId = availableLeaders.find { it.id == selectedGroupId }?.groupId
-                            onSubmit(name.trim(), phone.trim(), nc.trim(), shareValue, role, isLeader, actualGroupId, if (role == UserRole.OPERATOR) opWageType else null, if (role == UserRole.OPERATOR) (opWageAmount.toDoubleOrNull() ?: 0.0) else 0.0, includeWage)
+                            onSubmit(name.trim(), phone.trim(), nc.trim(), shareValue, role, isLeader, selectedGroupId, if (role == UserRole.OPERATOR) opWageType else null, if (role == UserRole.OPERATOR) (opWageAmount.toDoubleOrNull() ?: 0.0) else 0.0, includeWage)
                         }
                     }
                 },
