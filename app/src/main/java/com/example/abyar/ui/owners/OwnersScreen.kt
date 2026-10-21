@@ -397,7 +397,7 @@ private fun UserFormSheet(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = isLeader, onCheckedChange = {
                     isLeader = it
-                    if (it) selectedGroupId = null // سرگروه نمی‌تواند همزمان عضو گروه باشد
+                    if (it) selectedGroupId = null
                 })
                 Text("این شخص سرگروه است", fontSize = 13.sp)
             }
