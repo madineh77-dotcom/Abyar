@@ -51,6 +51,7 @@ class MainActivity : ComponentActivity() {
 
                     val homeVm: HomeViewModel = viewModel()
 
+                    // بارگذاری داده‌های چاه فعال
                     LaunchedEffect(currentWellId, userNationalCode) {
                         val wid = currentWellId
                         if (wid != null && userNationalCode.isNotBlank()) {
@@ -84,6 +85,7 @@ class MainActivity : ComponentActivity() {
                     }
                     val hasTurn = remember(nextTurn) { nextTurn != null }
 
+                    // --------- BackHandler ---------
                     val shouldHandleBack = when {
                         showOnboarding -> false
                         userNationalCode.isBlank() -> false
@@ -118,6 +120,10 @@ class MainActivity : ComponentActivity() {
                                     userName = name
                                     userPhone = phone
                                     userNationalCode = nc
+                                    // بازیابی خودکار اطلاعات چاه قبلی (اگر وجود داشته باشد)
+                                    if (currentWellId != null) {
+                                        homeVm.loadWell(currentWellId!!, nc)
+                                    }
                                     currentScreen = "wells"
                                 },
                                 onBack = null
@@ -198,6 +204,13 @@ class MainActivity : ComponentActivity() {
                                     userName = name
                                     userPhone = phone
                                     userNationalCode = nc
+                                    
+                                    // بازیابی خودکار اطلاعات کاربر بر اساس کد ملی جدید
+                                    val wid = currentWellId
+                                    if (wid != null) {
+                                        homeVm.loadWell(wid, nc)
+                                    }
+                                    
                                     currentScreen = "home"
                                 },
                                 onBack = { currentScreen = "home" }
@@ -246,7 +259,7 @@ class MainActivity : ComponentActivity() {
                             if (wid != null) {
                                 ScheduleScreen(
                                     wellId = wid,
-                                    userRole = currentUser?.role,
+                                    userRole = currentUser?.role, // ← پاس دادن نقش برای محدودیت تولید
                                     onBack = { currentScreen = "home" }
                                 )
                             } else {
