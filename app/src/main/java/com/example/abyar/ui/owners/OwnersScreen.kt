@@ -149,6 +149,7 @@ fun OwnersScreen(
             existingUser = userToEdit,
             remainingHours = stats.remainingHours,
             availableLeaders = grouped.availableLeaders,
+            leaderGroupMap = grouped.leaderGroupMap,
             onDismiss = { showFormSheet = false; userToEdit = null; vm.clearError() },
             onSubmit = { name, phone, nc, share, role, isLeader, grpId, opWt, opWa, incWage ->
                 vm.saveUser(
@@ -178,7 +179,26 @@ fun OwnersScreen(
             onDismissRequest = { userToDelete = null },
             icon = { Icon(Icons.Default.Warning, null, tint = AbyarRed) },
             title = { Text("حذف کاربر", fontWeight = FontWeight.Bold) },
-            text = { Text("آیا از حذف «${user.fullName}» مطمئن هستید؟ سهم ایشان به مجموع ساعت چاه بازمی‌گردد.") },
+            text = {
+                Column {
+                    Text("آیا از حذف «${user.fullName}» مطمئن هستید؟ سهم ایشان به مجموع ساعت چاه بازمی‌گردد.")
+                    if (user.isGroupLeader) {
+                        Spacer(Modifier.height(8.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = CardOrangeLight),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                "این کاربر سرگروه است. با حذف او، گروهش حذف و اعضایش آزاد می‌شوند.",
+                                modifier = Modifier.padding(10.dp),
+                                fontSize = 12.sp,
+                                color = AbyarOrange,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+            },
             confirmButton = {
                 Button(
                     onClick = { vm.deleteOwner(user) { userToDelete = null; vm.loadOwners(wellId) } },
@@ -312,6 +332,7 @@ private fun UserFormSheet(
     existingUser: User?,
     remainingHours: Double,
     availableLeaders: List<User>,
+    leaderGroupMap: Map<String, String>,
     onDismiss: () -> Unit,
     onSubmit: (
         name: String, phone: String, nc: String, share: Double,
@@ -374,7 +395,10 @@ private fun UserFormSheet(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = isLeader, onCheckedChange = { isLeader = it })
+                Checkbox(checked = isLeader, onCheckedChange = {
+                    isLeader = it
+                    if (it) selectedGroupId = null // سرگروه نمی‌تواند همزمان عضو گروه باشد
+                })
                 Text("این شخص سرگروه است", fontSize = 13.sp)
             }
 
@@ -382,7 +406,8 @@ private fun UserFormSheet(
             if (!isLeader && availableLeaders.isNotEmpty()) {
                 Text("اتصال به گروه (سرگروه):", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 var expanded by remember { mutableStateOf(false) }
-                val selectedLeaderName = availableLeaders.find { it.id == selectedGroupId }?.fullName ?: "بدون گروه"
+                val selectedLeaderName = availableLeaders
+                    .find { leaderGroupMap[it.id] == selectedGroupId }?.fullName ?: "بدون گروه"
 
                 Box {
                     OutlinedButton(
@@ -400,10 +425,13 @@ private fun UserFormSheet(
                             onClick = { selectedGroupId = null; expanded = false }
                         )
                         availableLeaders.forEach { leader ->
-                            DropdownMenuItem(
-                                text = { Text(leader.fullName) },
-                                onClick = { selectedGroupId = leader.id; expanded = false }
-                            )
+                            val gid = leaderGroupMap[leader.id]
+                            if (gid != null) {
+                                DropdownMenuItem(
+                                    text = { Text(leader.fullName) },
+                                    onClick = { selectedGroupId = gid; expanded = false }
+                                )
+                            }
                         }
                     }
                 }
@@ -449,7 +477,13 @@ private fun UserFormSheet(
                         shareValue < 0 -> localError = "سهم نمی‌تواند منفی باشد"
                         else -> {
                             localError = ""
-                            onSubmit(name.trim(), phone.trim(), nc.trim(), shareValue, role, isLeader, selectedGroupId, if (role == UserRole.OPERATOR) opWageType else null, if (role == UserRole.OPERATOR) (opWageAmount.toDoubleOrNull() ?: 0.0) else 0.0, includeWage)
+                            onSubmit(
+                                name.trim(), phone.trim(), nc.trim(), shareValue,
+                                role, isLeader, selectedGroupId,
+                                if (role == UserRole.OPERATOR) opWageType else null,
+                                if (role == UserRole.OPERATOR) (opWageAmount.toDoubleOrNull() ?: 0.0) else 0.0,
+                                includeWage
+                            )
                         }
                     }
                 },
