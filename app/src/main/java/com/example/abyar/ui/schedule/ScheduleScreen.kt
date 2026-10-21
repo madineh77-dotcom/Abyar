@@ -82,8 +82,8 @@ fun ScheduleScreen(
                         IconButton(onClick = { showSummary = !showSummary }) {
                             Icon(if (showSummary) Icons.Default.Analytics else Icons.Default.PieChart, null, tint = Color.White)
                         }
-                        // فقط مدیر اصلی می‌تواند برنامه را پاک کند
-                        if (userRole == UserRole.MAIN_ADMIN) {
+                        // مدیر اصلی و موتوربان می‌توانند برنامه را پاک کنند
+                        if (userRole == UserRole.MAIN_ADMIN || userRole == UserRole.OPERATOR) {
                             IconButton(onClick = { showClearDialog = true }) {
                                 Icon(Icons.Default.DeleteSweep, null, tint = Color.White)
                             }
@@ -94,8 +94,8 @@ fun ScheduleScreen(
             )
         },
         floatingActionButton = {
-            // فقط مدیر اصلی می‌تواند برنامه تولید کند
-            if (userRole == UserRole.MAIN_ADMIN) {
+            // مدیر اصلی و موتوربان می‌توانند برنامه تولید کنند
+            if (userRole == UserRole.MAIN_ADMIN || userRole == UserRole.OPERATOR) {
                 ExtendedFloatingActionButton(
                     onClick = { showGenerateDialog = true },
                     containerColor = AbyarGreen,
@@ -134,6 +134,7 @@ fun ScheduleScreen(
                     items(filteredTurns, key = { it.id }) { turn ->
                         TurnCard(
                             turn = turn,
+                            // مدیر اصلی و موتوربان می‌توانند روی نوبت‌ها عملیات انجام دهند
                             onClick = { if (userRole == UserRole.MAIN_ADMIN || userRole == UserRole.OPERATOR) actionTurn = turn },
                             onToggle = { vm.toggleTurnStatus(turn) { } }
                         )
@@ -197,8 +198,6 @@ fun ScheduleScreen(
         )
     }
 }
-
-// (بقیه کامپوننت‌های ScheduleScreen بدون تغییر باقی می‌مانند)
 
 @Composable
 private fun CompactStatsCard(stats: ScheduleStats) {
