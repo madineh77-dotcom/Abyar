@@ -246,6 +246,7 @@ class MainActivity : ComponentActivity() {
                             if (wid != null) {
                                 ScheduleScreen(
                                     wellId = wid,
+                                    userRole = currentUser?.role,
                                     onBack = { currentScreen = "home" }
                                 )
                             } else {
