@@ -11,14 +11,19 @@ object Scheduler {
         val turns = mutableListOf<IrrigationTurn>()
         var currentTime = startTime
 
-        // ۱. بررسی دستمزد موتوربان از کل چاه
         val operator = owners.find { it.role == UserRole.OPERATOR }
-        if (operator != null && 
-            operator.operatorWageType == WageType.FROM_TOTAL && 
-            operator.operatorWageAmount > 0 && 
-            operator.includeWageInSchedule) {
-            
-            val wageMs = (operator.operatorWageAmount * 60.0 * 60.0 * 1000.0).toLong()
+        val wageHours = if (
+            operator != null &&
+            operator.includeWageInSchedule &&
+            operator.operatorWageAmount > 0
+        ) operator.operatorWageAmount else 0.0
+
+        // ۱. دستمزد از کل چاه (قبل از نوبت مالکان)
+        if (operator != null &&
+            operator.operatorWageType == WageType.FROM_TOTAL &&
+            wageHours > 0
+        ) {
+            val wageMs = (wageHours * 60.0 * 60.0 * 1000.0).toLong()
             turns.add(
                 IrrigationTurn(
                     id = UUID.randomUUID().toString(),
@@ -33,12 +38,25 @@ object Scheduler {
             currentTime += wageMs
         }
 
-        // ۲. نوبت مالکان (به جز کسانی که سهم ۰ دارند)
-        val withWater = owners.filter { it.shareHours > 0.0 }
-        val sorted = withWater.sortedByDescending { it.shareHours }
+        // ۲. نوبت مالکان (کسر دستمزد از سهم خود موتوربان در صورت لزوم)
+        val sorted = owners
+            .filter { it.shareHours > 0.0 }
+            .sortedByDescending { it.shareHours }
 
         for (owner in sorted) {
-            val shareMs = (owner.shareHours * 60.0 * 60.0 * 1000.0).toLong()
+            var share = owner.shareHours
+
+            if (operator != null &&
+                owner.id == operator.id &&
+                operator.operatorWageType == WageType.FROM_OWN_SHARE &&
+                wageHours > 0
+            ) {
+                share = (share - wageHours).coerceAtLeast(0.0)
+            }
+
+            if (share <= 0.0) continue
+
+            val shareMs = (share * 60.0 * 60.0 * 1000.0).toLong()
             turns.add(
                 IrrigationTurn(
                     id = UUID.randomUUID().toString(),
