@@ -1,6 +1,7 @@
 package com.example.abyar.ui.schedule
 
 import androidx.compose.animation.AnimatedVisibility
+import com.example.abyar.data.UserRole
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -33,6 +34,7 @@ import com.example.abyar.util.*
 @Composable
 fun ScheduleScreen(
     wellId: String,
+    userRole: UserRole?,  
     onBack: () -> Unit,
     vm: ScheduleViewModel = viewModel()
 ) {
@@ -105,7 +107,7 @@ fun ScheduleScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = AbyarBlueDark)
             )
         },
-        floatingActionButton = {
+        floatingActionButton = {  if (userRole == UserRole.MAIN_ADMIN) {
             ExtendedFloatingActionButton(
                 onClick = { showGenerateDialog = true },
                 containerColor = AbyarGreen,
@@ -118,6 +120,7 @@ fun ScheduleScreen(
                     )
                 }
             )
+            }
         }
     ) { padding ->
         Column(
