@@ -22,7 +22,7 @@ data class GroupedOwners(
     val smallOwners: List<User>,
     val operators: List<User>,
     val availableLeaders: List<User>,
-    val leaderGroupMap: Map<String, String> = emptyMap() // leaderId -> groupId
+    val leaderGroupMap: Map<String, String> = emptyMap()
 )
 
 class OwnersViewModel(application: Application) : AndroidViewModel(application) {
@@ -63,10 +63,10 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
             val smallOwners = allUsers.filter { it.role == UserRole.SMALL_OWNER }.sortedByDescending { it.shareHours }
             val operators = allUsers.filter { it.role == UserRole.OPERATOR }
 
-            // نگاشت سرگروه -> شناسه گروه (فقط گروه‌های واقعی موجود در DB)
+            // نگاشت شناسه سرگروه به شناسه گروه
             val leaderGroupMap = allGroups.associate { it.leaderId to it.id }
 
-            // فقط کسانی که سرگروه هستند و واقعاً یک گروه فعال دارند
+            // فقط سرگروه‌هایی که واقعاً یک گروه فعال دارند
             val leaders = allUsers.filter { it.isGroupLeader && leaderGroupMap.containsKey(it.id) }
 
             _grouped.value = GroupedOwners(
