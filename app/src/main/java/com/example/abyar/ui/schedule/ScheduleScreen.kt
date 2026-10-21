@@ -1,7 +1,6 @@
 package com.example.abyar.ui.schedule
 
 import androidx.compose.animation.AnimatedVisibility
-import com.example.abyar.data.UserRole
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -26,7 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.abyar.data.IrrigationTurn
-import com.example.abyar.data.User
+import com.example.abyar.data.UserRole
 import com.example.abyar.ui.theme.*
 import com.example.abyar.util.*
 
@@ -34,12 +33,11 @@ import com.example.abyar.util.*
 @Composable
 fun ScheduleScreen(
     wellId: String,
-    userRole: UserRole?,  
+    userRole: UserRole?,
     onBack: () -> Unit,
     vm: ScheduleViewModel = viewModel()
 ) {
     val turns by vm.turns.collectAsState()
-    val owners by vm.owners.collectAsState()
     val summaries by vm.ownerSummaries.collectAsState()
     val stats by vm.stats.collectAsState()
     val error by vm.error.collectAsState()
@@ -59,23 +57,16 @@ fun ScheduleScreen(
     LaunchedEffect(wellId) { vm.loadTurns(wellId) }
 
     LaunchedEffect(error) {
-        if (error.isNotEmpty()) {
-            snackbarHostState.showSnackbar(error, duration = SnackbarDuration.Short)
-            vm.clearMessages()
-        }
+        if (error.isNotEmpty()) { snackbarHostState.showSnackbar(error, duration = SnackbarDuration.Short); vm.clearMessages() }
     }
     LaunchedEffect(info) {
-        if (info.isNotEmpty()) {
-            snackbarHostState.showSnackbar(info, duration = SnackbarDuration.Short)
-            vm.clearMessages()
-        }
+        if (info.isNotEmpty()) { snackbarHostState.showSnackbar(info, duration = SnackbarDuration.Short); vm.clearMessages() }
     }
 
     val filteredTurns = remember(turns, filterStatus, searchQuery) {
         turns.filter { turn ->
             val matchesStatus = filterStatus == "ALL" || turn.status == filterStatus
-            val matchesSearch = searchQuery.isBlank() ||
-                    turn.userName.contains(searchQuery, ignoreCase = true)
+            val matchesSearch = searchQuery.isBlank() || turn.userName.contains(searchQuery, ignoreCase = true)
             matchesStatus && matchesSearch
         }
     }
@@ -85,53 +76,37 @@ fun ScheduleScreen(
         topBar = {
             TopAppBar(
                 title = { Text("برنامه آبیاری", color = Color.White, fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, null, tint = Color.White)
-                    }
-                },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = Color.White) } },
                 actions = {
                     if (turns.isNotEmpty()) {
                         IconButton(onClick = { showSummary = !showSummary }) {
-                            Icon(
-                                if (showSummary) Icons.Default.Analytics else Icons.Default.PieChart,
-                                null,
-                                tint = Color.White
-                            )
+                            Icon(if (showSummary) Icons.Default.Analytics else Icons.Default.PieChart, null, tint = Color.White)
                         }
-                        IconButton(onClick = { showClearDialog = true }) {
-                            Icon(Icons.Default.DeleteSweep, null, tint = Color.White)
+                        // فقط مدیر اصلی می‌تواند برنامه را پاک کند
+                        if (userRole == UserRole.MAIN_ADMIN) {
+                            IconButton(onClick = { showClearDialog = true }) {
+                                Icon(Icons.Default.DeleteSweep, null, tint = Color.White)
+                            }
                         }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = AbyarBlueDark)
             )
         },
-        floatingActionButton = {  if (userRole == UserRole.MAIN_ADMIN) {
-            ExtendedFloatingActionButton(
-                onClick = { showGenerateDialog = true },
-                containerColor = AbyarGreen,
-                icon = { Icon(Icons.Default.AutoMode, null, tint = Color.White) },
-                text = {
-                    Text(
-                        if (turns.isEmpty()) "تولید برنامه" else "تولید مجدد",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            )
+        floatingActionButton = {
+            // فقط مدیر اصلی می‌تواند برنامه تولید کند
+            if (userRole == UserRole.MAIN_ADMIN) {
+                ExtendedFloatingActionButton(
+                    onClick = { showGenerateDialog = true },
+                    containerColor = AbyarGreen,
+                    icon = { Icon(Icons.Default.AutoMode, null, tint = Color.White) },
+                    text = { Text(if (turns.isEmpty()) "تولید برنامه" else "تولید مجدد", color = Color.White, fontWeight = FontWeight.Bold) }
+                )
             }
         }
     ) { padding ->
-        Column(
-            Modifier
-                .fillMaxSize()
-                .background(BackgroundLight)
-                .padding(padding)
-        ) {
-            if (turns.isNotEmpty()) {
-                CompactStatsCard(stats)
-            }
+        Column(Modifier.fillMaxSize().background(BackgroundLight).padding(padding)) {
+            if (turns.isNotEmpty()) { CompactStatsCard(stats) }
 
             AnimatedVisibility(visible = showSummary && summaries.isNotEmpty()) {
                 OwnersSummarySection(summaries = summaries)
@@ -139,22 +114,13 @@ fun ScheduleScreen(
 
             if (turns.isNotEmpty()) {
                 OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
+                    value = searchQuery, onValueChange = { searchQuery = it },
                     placeholder = { Text("جستجوی مالک...", fontSize = 13.sp) },
                     leadingIcon = { Icon(Icons.Default.Search, null, modifier = Modifier.size(20.dp)) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    singleLine = true
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(12.dp), singleLine = true
                 )
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     StatusChip("همه", "ALL", filterStatus) { filterStatus = it }
                     StatusChip("در انتظار", "PENDING", filterStatus) { filterStatus = it }
                     StatusChip("انجام‌شده", "COMPLETED", filterStatus) { filterStatus = it }
@@ -164,14 +130,11 @@ fun ScheduleScreen(
             if (turns.isEmpty()) {
                 EmptyState()
             } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 80.dp, top = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
+                LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 80.dp, top = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     items(filteredTurns, key = { it.id }) { turn ->
                         TurnCard(
                             turn = turn,
-                            onClick = { actionTurn = turn },
+                            onClick = { if (userRole == UserRole.MAIN_ADMIN || userRole == UserRole.OPERATOR) actionTurn = turn },
                             onToggle = { vm.toggleTurnStatus(turn) { } }
                         )
                     }
@@ -180,7 +143,6 @@ fun ScheduleScreen(
         }
     }
 
-    // شیت عملیات روی نوبت
     actionTurn?.let { turn ->
         TurnActionsSheet(
             turn = turn,
@@ -191,22 +153,16 @@ fun ScheduleScreen(
     }
 
     if (showGenerateDialog) {
-        GenerateDialog(
-            hasExisting = turns.isNotEmpty(),
-            onDismiss = { showGenerateDialog = false },
-            onConfirm = { y, m, d ->
-                vm.generateSchedule(wellId, y, m, d) { showGenerateDialog = false }
-            }
-        )
+        GenerateDialog(hasExisting = turns.isNotEmpty(), onDismiss = { showGenerateDialog = false }, onConfirm = { y, m, d -> vm.generateSchedule(wellId, y, m, d) { showGenerateDialog = false } })
     }
 
     if (showMoveSheet && actionTurn != null) {
         MoveTurnSheet(
             currentTurn = actionTurn!!,
-            owners = owners,
+            allTurns = turns,
             onDismiss = { showMoveSheet = false; actionTurn = null },
-            onSelect = { userId, userName ->
-                vm.moveTurnToUser(actionTurn!!, userId, userName) {
+            onSelect = { targetTurn ->
+                vm.swapTurns(actionTurn!!, targetTurn) {
                     showMoveSheet = false
                     actionTurn = null
                 }
@@ -220,15 +176,8 @@ fun ScheduleScreen(
             icon = { Icon(Icons.Default.Warning, null, tint = AbyarRed) },
             title = { Text("پاک کردن کل برنامه", fontWeight = FontWeight.Bold) },
             text = { Text("آیا از پاک کردن ${turns.size} نوبت ثبت‌شده مطمئن هستید؟") },
-            confirmButton = {
-                Button(
-                    onClick = { vm.clearAllTurns(wellId) { showClearDialog = false } },
-                    colors = ButtonDefaults.buttonColors(containerColor = AbyarRed)
-                ) { Text("پاک کن") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearDialog = false }) { Text("انصراف") }
-            }
+            confirmButton = { Button(onClick = { vm.clearAllTurns(wellId) { showClearDialog = false } }, colors = ButtonDefaults.buttonColors(containerColor = AbyarRed)) { Text("پاک کن") } },
+            dismissButton = { TextButton(onClick = { showClearDialog = false }) { Text("انصراف") } }
         )
     }
 
@@ -237,56 +186,37 @@ fun ScheduleScreen(
             onDismissRequest = { turnToDelete = null },
             icon = { Icon(Icons.Default.Warning, null, tint = AbyarRed) },
             title = { Text("حذف نوبت", fontWeight = FontWeight.Bold) },
-            text = { Text("آیا از حذف نوبت «${turn.userName}» مطمئن هستید؟") },
+            text = { Text("آیا از حذف نوبت «${turn.userName}» مطمئن هستید؟ نوبت‌های بعدی به عقب شیفت داده می‌شوند.") },
             confirmButton = {
                 Button(
-                    onClick = { vm.deleteTurn(turn) { turnToDelete = null } },
+                    onClick = { vm.deleteTurnAndShift(turn) { turnToDelete = null } },
                     colors = ButtonDefaults.buttonColors(containerColor = AbyarRed)
-                ) { Text("حذف") }
+                ) { Text("حذف و شیفت") }
             },
-            dismissButton = {
-                TextButton(onClick = { turnToDelete = null }) { Text("انصراف") }
-            }
+            dismissButton = { TextButton(onClick = { turnToDelete = null }) { Text("انصراف") } }
         )
     }
 }
 
-// ==================== کارت آمار فشرده ====================
+// (بقیه کامپوننت‌های ScheduleScreen بدون تغییر باقی می‌مانند)
 
 @Composable
 private fun CompactStatsCard(stats: ScheduleStats) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(3.dp)
-    ) {
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(3.dp)) {
         Column(Modifier.padding(12.dp)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 CompactStatBox(Icons.Default.List, "کل", "${stats.totalTurns}", AbyarBlue, Modifier.weight(1f))
                 CompactStatBox(Icons.Default.CheckCircle, "انجام", "${stats.completedCount}", AbyarGreen, Modifier.weight(1f))
                 CompactStatBox(Icons.Default.Schedule, "در انتظار", "${stats.pendingCount}", AbyarOrange, Modifier.weight(1f))
             }
-
             if (stats.startDate != null && stats.endDate != null) {
                 Spacer(Modifier.height(10.dp))
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     SmallInfoChip(Icons.Default.PlayArrow, "شروع: ${formatPersianDate(stats.startDate)}", AbyarBlue, Modifier.weight(1f))
                     SmallInfoChip(Icons.Default.Stop, "پایان: ${formatPersianDate(stats.endDate)}", AbyarRed, Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(6.dp))
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     SmallInfoChip(Icons.Default.Refresh, "مدار: ${stats.cycleDays} روز", AbyarPurple, Modifier.weight(1f))
                     SmallInfoChip(Icons.Default.Group, "شرکت‌کنندگان: ${stats.participantsCount} نفر", AbyarTeal, Modifier.weight(1f))
                 }
@@ -296,22 +226,9 @@ private fun CompactStatsCard(stats: ScheduleStats) {
 }
 
 @Composable
-private fun CompactStatBox(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    value: String,
-    color: Color,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f))
-    ) {
-        Row(
-            Modifier.padding(8.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+private fun CompactStatBox(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String, color: Color, modifier: Modifier = Modifier) {
+    Card(modifier = modifier, shape = RoundedCornerShape(10.dp), colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f))) {
+        Row(Modifier.padding(8.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, tint = color, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
             Column {
@@ -323,21 +240,9 @@ private fun CompactStatBox(
 }
 
 @Composable
-private fun SmallInfoChip(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    text: String,
-    color: Color,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier,
-        color = color.copy(alpha = 0.08f),
-        shape = RoundedCornerShape(8.dp)
-    ) {
-        Row(
-            Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+private fun SmallInfoChip(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, color: Color, modifier: Modifier = Modifier) {
+    Surface(modifier = modifier, color = color.copy(alpha = 0.08f), shape = RoundedCornerShape(8.dp)) {
+        Row(Modifier.padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, tint = color, modifier = Modifier.size(12.dp))
             Spacer(Modifier.width(4.dp))
             Text(text, fontSize = 10.sp, color = color, fontWeight = FontWeight.SemiBold, maxLines = 1)
@@ -345,18 +250,9 @@ private fun SmallInfoChip(
     }
 }
 
-// ==================== خلاصه سهم مالکان ====================
-
 @Composable
 private fun OwnersSummarySection(summaries: List<OwnerScheduleSummary>) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF3E5F5)),
-        elevation = CardDefaults.cardElevation(2.dp)
-    ) {
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF3E5F5)), elevation = CardDefaults.cardElevation(2.dp)) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.PieChart, null, tint = AbyarPurple)
@@ -366,7 +262,6 @@ private fun OwnersSummarySection(summaries: List<OwnerScheduleSummary>) {
             Spacer(Modifier.height(4.dp))
             Text("مقایسه سهم ثبت‌شده با مجموع نوبت‌های هر مالک", fontSize = 11.sp, color = TextSecondary)
             Spacer(Modifier.height(10.dp))
-
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("مالک", Modifier.weight(1.4f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
                 Text("سهم", Modifier.weight(0.7f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
@@ -374,12 +269,8 @@ private fun OwnersSummarySection(summaries: List<OwnerScheduleSummary>) {
                 Text("وضعیت", Modifier.weight(1f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
             }
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
-
             summaries.forEach { s ->
-                Row(
-                    Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(s.userName, Modifier.weight(1.4f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
                     Text("${s.shareHours}", Modifier.weight(0.7f), fontSize = 12.sp, color = TextSecondary)
                     Text(String.format("%.1f", s.scheduledHours), Modifier.weight(0.8f), fontSize = 12.sp, color = AbyarBlue, fontWeight = FontWeight.Bold)
@@ -394,15 +285,11 @@ private fun OwnersSummarySection(summaries: List<OwnerScheduleSummary>) {
                             }
                         } else if (s.difference > 0) {
                             Surface(color = CardOrangeLight, shape = RoundedCornerShape(6.dp)) {
-                                Text("بیشتر: +${String.format("%.1f", s.difference)}",
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                                    fontSize = 10.sp, color = AbyarOrange, fontWeight = FontWeight.Bold)
+                                Text("بیشتر: +${String.format("%.1f", s.difference)}", modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp), fontSize = 10.sp, color = AbyarOrange, fontWeight = FontWeight.Bold)
                             }
                         } else {
                             Surface(color = Color(0xFFFFEBEE), shape = RoundedCornerShape(6.dp)) {
-                                Text("کمتر: ${String.format("%.1f", s.difference)}",
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                                    fontSize = 10.sp, color = AbyarRed, fontWeight = FontWeight.Bold)
+                                Text("کمتر: ${String.format("%.1f", s.difference)}", modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp), fontSize = 10.sp, color = AbyarRed, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -412,27 +299,13 @@ private fun OwnersSummarySection(summaries: List<OwnerScheduleSummary>) {
     }
 }
 
-// ==================== کامپوننت‌های قبلی ====================
-
 @Composable
 private fun StatusChip(label: String, value: String, current: String, onSelect: (String) -> Unit) {
-    FilterChip(
-        selected = current == value,
-        onClick = { onSelect(value) },
-        label = { Text(label, fontSize = 12.sp) },
-        colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = AbyarBlue,
-            selectedLabelColor = Color.White
-        )
-    )
+    FilterChip(selected = current == value, onClick = { onSelect(value) }, label = { Text(label, fontSize = 12.sp) }, colors = FilterChipDefaults.filterChipColors(selectedContainerColor = AbyarBlue, selectedLabelColor = Color.White))
 }
 
 @Composable
-private fun TurnCard(
-    turn: IrrigationTurn,
-    onClick: () -> Unit,
-    onToggle: () -> Unit
-) {
+private fun TurnCard(turn: IrrigationTurn, onClick: () -> Unit, onToggle: () -> Unit) {
     val (statusLabel, statusColor, statusIcon) = when (turn.status) {
         "COMPLETED" -> Triple("انجام شد", AbyarGreen, Icons.Default.CheckCircle)
         "CANCELLED" -> Triple("لغو شده", Color.Gray, Icons.Default.Cancel)
@@ -440,23 +313,14 @@ private fun TurnCard(
     }
     val durationMs = turn.endTime - turn.startTime
     val durationHours = durationMs / (1000.0 * 60.0 * 60.0)
-    val durationText = if (durationHours < 1) "${(durationMs / (1000 * 60))} دقیقه"
-    else String.format("%.1f ساعت", durationHours)
+    val durationText = if (durationHours < 1) "${(durationMs / (1000 * 60))} دقیقه" else String.format("%.1f ساعت", durationHours)
 
-    Card(
-        Modifier.fillMaxWidth().clickable { onClick() },
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(2.dp)
-    ) {
+    Card(Modifier.fillMaxWidth().clickable { onClick() }, shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(2.dp)) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(4.dp, 44.dp).clip(RoundedCornerShape(2.dp)).background(statusColor))
                 Spacer(Modifier.width(12.dp))
-                Box(
-                    Modifier.size(40.dp).clip(CircleShape).background(AbyarBlue.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
-                ) {
+                Box(Modifier.size(40.dp).clip(CircleShape).background(AbyarBlue.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
                     Icon(Icons.Default.Person, null, tint = AbyarBlue, modifier = Modifier.size(22.dp))
                 }
                 Spacer(Modifier.width(10.dp))
@@ -466,18 +330,13 @@ private fun TurnCard(
                     Text("تا ${formatPersianDateTime(turn.endTime)}", fontSize = 11.sp, color = TextSecondary)
                 }
                 Surface(color = AbyarBlue.copy(alpha = 0.12f), shape = RoundedCornerShape(8.dp)) {
-                    Text(durationText, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AbyarBlue)
+                    Text(durationText, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AbyarBlue)
                 }
             }
             Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Surface(color = statusColor.copy(alpha = 0.15f), shape = RoundedCornerShape(8.dp)) {
-                    Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(statusIcon, null, tint = statusColor, modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(4.dp))
                         Text(statusLabel, color = statusColor, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -485,8 +344,7 @@ private fun TurnCard(
                 }
                 Spacer(Modifier.weight(1f))
                 TextButton(onClick = onToggle) {
-                    Icon(if (turn.status == "COMPLETED") Icons.Default.Undo else Icons.Default.Check,
-                        null, modifier = Modifier.size(18.dp))
+                    Icon(if (turn.status == "COMPLETED") Icons.Default.Undo else Icons.Default.Check, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(4.dp))
                     Text(if (turn.status == "COMPLETED") "برگردان" else "تایید", fontSize = 12.sp)
                 }
@@ -500,10 +358,7 @@ private fun TurnCard(
 private fun EmptyState() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(
-                Modifier.size(120.dp).clip(CircleShape).background(AbyarBlue.copy(alpha = 0.1f)),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(Modifier.size(120.dp).clip(CircleShape).background(AbyarBlue.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
                 Icon(Icons.Default.CalendarMonth, null, tint = AbyarBlue, modifier = Modifier.size(64.dp))
             }
             Spacer(Modifier.height(20.dp))
@@ -514,65 +369,34 @@ private fun EmptyState() {
     }
 }
 
-// ==================== Bottom Sheet عملیات ====================
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TurnActionsSheet(
-    turn: IrrigationTurn,
-    onDismiss: () -> Unit,
-    onDelete: () -> Unit,
-    onMove: () -> Unit
-) {
+private fun TurnActionsSheet(turn: IrrigationTurn, onDismiss: () -> Unit, onDelete: () -> Unit, onMove: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            Modifier.padding(20.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
+        Column(Modifier.padding(20.dp).fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier.size(44.dp).clip(CircleShape).background(AbyarBlue.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
-                ) {
+                Box(Modifier.size(44.dp).clip(CircleShape).background(AbyarBlue.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
                     Icon(Icons.Default.Person, null, tint = AbyarBlue)
                 }
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Text(turn.userName, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                    Text("${formatPersianDateTime(turn.startTime)} تا ${formatPersianDateTime(turn.endTime)}",
-                        fontSize = 11.sp, color = TextSecondary)
+                    Text("${formatPersianDateTime(turn.startTime)} تا ${formatPersianDateTime(turn.endTime)}", fontSize = 11.sp, color = TextSecondary)
                 }
             }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
-
-            ActionItem(Icons.Default.SwapHoriz, AbyarOrange, "جابجایی نوبت",
-                "انتقال این نوبت به مالک دیگر (زمان ثابت)", onMove)
-            ActionItem(Icons.Default.Delete, AbyarRed, "حذف نوبت",
-                "حذف کامل این نوبت از برنامه", onDelete)
+            ActionItem(Icons.Default.SwapHoriz, AbyarOrange, "جابجایی نوبت", "انتقال این نوبت به زمان دیگر و شیفت دادن بقیه", onMove)
+            ActionItem(Icons.Default.Delete, AbyarRed, "حذف و شیفت", "حذف این نوبت و شیفت دادن بقیه به عقب", onDelete)
             Spacer(Modifier.height(20.dp))
         }
     }
 }
 
 @Composable
-private fun ActionItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    color: Color,
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit
-) {
-    Card(
-        Modifier.fillMaxWidth().clickable { onClick() },
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.08f)),
-        elevation = CardDefaults.cardElevation(0.dp)
-    ) {
+private fun ActionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, color: Color, title: String, subtitle: String, onClick: () -> Unit) {
+    Card(Modifier.fillMaxWidth().clickable { onClick() }, shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.08f)), elevation = CardDefaults.cardElevation(0.dp)) {
         Row(Modifier.padding(14.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(color.copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(color.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
                 Icon(icon, null, tint = color, modifier = Modifier.size(24.dp))
             }
             Spacer(Modifier.width(12.dp))
@@ -585,70 +409,58 @@ private fun ActionItem(
     }
 }
 
-// ==================== شیت جابجایی ====================
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MoveTurnSheet(
     currentTurn: IrrigationTurn,
-    owners: List<User>,
+    allTurns: List<IrrigationTurn>,
     onDismiss: () -> Unit,
-    onSelect: (String, String) -> Unit
+    onSelect: (IrrigationTurn) -> Unit
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            Modifier.padding(20.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        Column(Modifier.padding(20.dp).fillMaxWidth().heightIn(max = 500.dp)) {
             Text("جابجایی نوبت", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AbyarBlueDark)
-            Text("نوبت فعلی: ${currentTurn.userName}", fontSize = 13.sp, color = TextSecondary)
-            Text("زمان: ${formatPersianDateTime(currentTurn.startTime)} تا ${formatPersianDateTime(currentTurn.endTime)}",
-                fontSize = 11.sp, color = TextSecondary)
-            Spacer(Modifier.height(10.dp))
-            Text("انتقال نوبت به:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text("انتخاب زمان مقصد برای نوبت ${currentTurn.userName}", fontSize = 13.sp, color = TextSecondary)
+            Spacer(Modifier.height(16.dp))
+            
+            Text("این نوبت را با کدام نوبت جابجا کنیم؟", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Spacer(Modifier.height(8.dp))
 
-            val candidates = owners.filter { it.id != currentTurn.userId }
+            val candidates = allTurns.filter { it.id != currentTurn.id }.sortedBy { it.startTime }
             if (candidates.isEmpty()) {
-                Text("مالک دیگری برای انتقال وجود ندارد", color = AbyarRed, fontSize = 13.sp)
+                Text("نوبت دیگری برای جابجایی وجود ندارد", color = AbyarRed, fontSize = 13.sp)
             } else {
-                candidates.forEach { owner ->
-                    Card(
-                        Modifier.fillMaxWidth().clickable { onSelect(owner.id, owner.fullName) },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(1.dp)
-                    ) {
-                        Row(Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                Modifier.size(38.dp).clip(CircleShape).background(AbyarBlue.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.Person, null, tint = AbyarBlue, modifier = Modifier.size(20.dp))
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(candidates) { targetTurn ->
+                        Card(
+                            Modifier.fillMaxWidth().clickable { onSelect(targetTurn) },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(1.dp)
+                        ) {
+                            Row(Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(38.dp).clip(CircleShape).background(AbyarOrange.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Schedule, null, tint = AbyarOrange, modifier = Modifier.size(20.dp))
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(targetTurn.userName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text(formatPersianDateTime(targetTurn.startTime), fontSize = 11.sp, color = TextSecondary)
+                                }
+                                Icon(Icons.Default.ChevronLeft, null, tint = AbyarBlue)
                             }
-                            Spacer(Modifier.width(10.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(owner.fullName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                Text("سهم: ${owner.shareHours} ساعت", fontSize = 11.sp, color = AbyarGreen)
-                            }
-                            Icon(Icons.Default.ChevronLeft, null, tint = AbyarBlue)
                         }
                     }
                 }
             }
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(16.dp))
         }
     }
 }
 
-// ==================== دیالوگ تولید ====================
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun GenerateDialog(
-    hasExisting: Boolean,
-    onDismiss: () -> Unit,
-    onConfirm: (Int, Int, Int) -> Unit
-) {
+private fun GenerateDialog(hasExisting: Boolean, onDismiss: () -> Unit, onConfirm: (Int, Int, Int) -> Unit) {
     val today = remember { getTodayJalali() }
     var year by remember { mutableStateOf(today.first.toString()) }
     var month by remember { mutableStateOf(today.second.toString()) }
@@ -665,8 +477,7 @@ private fun GenerateDialog(
                         Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Warning, null, tint = AbyarOrange, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("برنامه قبلی پاک و برنامه جدید ساخته می‌شود.",
-                                fontSize = 12.sp, color = AbyarOrange, fontWeight = FontWeight.SemiBold)
+                            Text("برنامه قبلی پاک و برنامه جدید ساخته می‌شود.", fontSize = 12.sp, color = AbyarOrange, fontWeight = FontWeight.SemiBold)
                         }
                     }
                     Spacer(Modifier.height(12.dp))
@@ -674,52 +485,15 @@ private fun GenerateDialog(
                 Text("تاریخ شروع مدار را وارد کنید:", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = day,
-                        onValueChange = {
-                            val c = toEnglishDigits(it)
-                            if (c.length <= 2 && c.all { ch -> ch.isDigit() }) day = c
-                        },
-                        label = { Text("روز", fontSize = 11.sp) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f), singleLine = true, shape = RoundedCornerShape(12.dp)
-                    )
-                    OutlinedTextField(
-                        value = month,
-                        onValueChange = {
-                            val c = toEnglishDigits(it)
-                            if (c.length <= 2 && c.all { ch -> ch.isDigit() }) month = c
-                        },
-                        label = { Text("ماه", fontSize = 11.sp) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f), singleLine = true, shape = RoundedCornerShape(12.dp)
-                    )
-                    OutlinedTextField(
-                        value = year,
-                        onValueChange = {
-                            val c = toEnglishDigits(it)
-                            if (c.length <= 4 && c.all { ch -> ch.isDigit() }) year = c
-                        },
-                        label = { Text("سال", fontSize = 11.sp) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1.3f), singleLine = true, shape = RoundedCornerShape(12.dp)
-                    )
+                    OutlinedTextField(value = day, onValueChange = { val c = toEnglishDigits(it); if (c.length <= 2 && c.all { ch -> ch.isDigit() }) day = c }, label = { Text("روز", fontSize = 11.sp) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f), singleLine = true, shape = RoundedCornerShape(12.dp))
+                    OutlinedTextField(value = month, onValueChange = { val c = toEnglishDigits(it); if (c.length <= 2 && c.all { ch -> ch.isDigit() }) month = c }, label = { Text("ماه", fontSize = 11.sp) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f), singleLine = true, shape = RoundedCornerShape(12.dp))
+                    OutlinedTextField(value = year, onValueChange = { val c = toEnglishDigits(it); if (c.length <= 4 && c.all { ch -> ch.isDigit() }) year = c }, label = { Text("سال", fontSize = 11.sp) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1.3f), singleLine = true, shape = RoundedCornerShape(12.dp))
                 }
                 Spacer(Modifier.height(8.dp))
                 Text("مثال: امروز = ${today.first}/${today.second}/${today.third}", fontSize = 11.sp, color = TextSecondary)
             }
         },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val y = year.toIntOrNull() ?: today.first
-                    val m = month.toIntOrNull() ?: today.second
-                    val d = day.toIntOrNull() ?: today.third
-                    onConfirm(y, m, d)
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = AbyarGreen)
-            ) { Text("تولید برنامه") }
-        },
+        confirmButton = { Button(onClick = { val y = year.toIntOrNull() ?: today.first; val m = month.toIntOrNull() ?: today.second; val d = day.toIntOrNull() ?: today.third; onConfirm(y, m, d) }, colors = ButtonDefaults.buttonColors(containerColor = AbyarGreen)) { Text("تولید برنامه") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } }
     )
 }
