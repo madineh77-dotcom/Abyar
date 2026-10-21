@@ -41,6 +41,7 @@ fun OperatorDashboardScreen(
     wellName: String,
     onBack: () -> Unit,
     onManageGroups: () -> Unit,
+    onManageOwners: () -> Unit,
     onFullSchedule: () -> Unit,
     onNotify: () -> Unit,
     onEditProfile: () -> Unit,
@@ -121,6 +122,7 @@ fun OperatorDashboardScreen(
                         Text("پنل موتوربان", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         Text(wellName, color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
                     }
+                    IconButton(onClick = onManageOwners) { Icon(Icons.Default.People, null, tint = Color.White) }
                     IconButton(onClick = onFullSchedule) { Icon(Icons.Default.CalendarMonth, null, tint = Color.White) }
                     IconButton(onClick = onEditProfile) { Icon(Icons.Default.Person, null, tint = Color.White) }
                 }
@@ -131,7 +133,6 @@ fun OperatorDashboardScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // کارت نوبت بعدی
                 item {
                     val nt = nextTurn
                     if (nt != null) {
@@ -161,7 +162,6 @@ fun OperatorDashboardScreen(
                     }
                 }
 
-                // عنوان لیست امروز
                 item {
                     Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Today, null, tint = AbyarBlue, modifier = Modifier.size(20.dp))
@@ -170,7 +170,6 @@ fun OperatorDashboardScreen(
                     }
                 }
 
-                // لیست نوبت‌های امروز
                 if (todayTurns.isEmpty()) {
                     item {
                         Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
@@ -193,10 +192,10 @@ fun OperatorDashboardScreen(
                     }
                 }
 
-                // دکمه‌های پایین
                 item {
                     Spacer(Modifier.height(8.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        BigActionCard(icon = Icons.Default.People, title = "مالکان", color = AbyarTeal, onClick = onManageOwners, modifier = Modifier.weight(1f))
                         BigActionCard(icon = Icons.Default.CalendarMonth, title = "برنامه", color = AbyarBlue, onClick = onFullSchedule, modifier = Modifier.weight(1f))
                         BigActionCard(icon = Icons.Default.Campaign, title = "اطلاع‌رسانی", color = AbyarGreen, onClick = onNotify, modifier = Modifier.weight(1f))
                         BigActionCard(icon = Icons.Default.Groups, title = "گروه‌ها", color = AbyarPurple, onClick = onManageGroups, modifier = Modifier.weight(1f))
@@ -207,7 +206,6 @@ fun OperatorDashboardScreen(
         }
     }
 
-    // شیت عملیات
     turnForActions?.let { turn ->
         TurnActionsSheet(
             turn = turn,
@@ -220,7 +218,6 @@ fun OperatorDashboardScreen(
         )
     }
 
-    // شیت جابجایی (با لیست نوبت‌های مقصد)
     if (showMoveSheet && turnForActions != null) {
         OperatorMoveTurnSheet(
             currentTurn = turnForActions!!,
@@ -235,7 +232,6 @@ fun OperatorDashboardScreen(
         )
     }
 
-    // دیالوگ تایید حذف
     turnToDelete?.let { turn ->
         AlertDialog(
             onDismissRequest = { turnToDelete = null },
@@ -454,7 +450,7 @@ private fun OperatorMoveTurnSheet(
             Text("جابجایی نوبت", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AbyarBlueDark)
             Text("انتخاب زمان مقصد برای نوبت ${currentTurn.userName}", fontSize = 13.sp, color = TextSecondary)
             Spacer(Modifier.height(16.dp))
-            
+
             Text("این نوبت را با کدام نوبت جابجا کنیم؟", fontWeight = FontWeight.Bold, fontSize = 14.sp)
             Spacer(Modifier.height(8.dp))
 
@@ -490,7 +486,6 @@ private fun OperatorMoveTurnSheet(
     }
 }
 
-// تابع کمکی برای فرمت تاریخ و ساعت (در صورتی که در util نبود)
 private fun formatPersianDateTime(timestamp: Long): String {
     return "${formatPersianDate(timestamp)} - ${formatPersianTime(timestamp)}"
 }
