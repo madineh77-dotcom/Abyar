@@ -41,7 +41,7 @@ fun NotifyScreen(
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-
+        var searchQuery by remember { mutableStateOf("") }
     var recipientType by remember { mutableStateOf("LEADERS") }
     var selectedGroupId by remember { mutableStateOf<String?>(null) }
     var selectedPersonId by remember { mutableStateOf<String?>(null) }
@@ -195,10 +195,27 @@ fun NotifyScreen(
                         }
                     }
 
-                    if (recipientType == "PERSON") {
+                 if (recipientType == "PERSON") {
                         Text("شخص:", fontSize = 12.sp, color = TextSecondary)
+                        
+                        // نوار جستجو
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text("جستجوی نام یا شماره...", fontSize = 12.sp) },
+                            leadingIcon = { Icon(Icons.Default.Search, null, modifier = Modifier.size(18.dp)) },
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            singleLine = true
+                        )
+
+                        // فیلتر لیست بر اساس جستجو
+                        val filteredUsers = allUsers.filter { 
+                            it.shareHours >= 0 && (it.fullName.contains(searchQuery, ignoreCase = true) || it.phone.contains(searchQuery)) 
+                        }
+                        
                         LazyColumn(Modifier.heightIn(max = 180.dp)) {
-                            items(allUsers.filter { it.shareHours > 0 }) { u ->
+                            items(filteredUsers) { u ->
                                 Row(
                                     Modifier.fillMaxWidth()
                                         .clickable { selectedPersonId = u.id }
@@ -210,7 +227,10 @@ fun NotifyScreen(
                                         onClick = { selectedPersonId = u.id }
                                     )
                                     Spacer(Modifier.width(4.dp))
-                                    Text(u.fullName, fontSize = 13.sp)
+                                    Column {
+                                        Text(u.fullName, fontSize = 13.sp)
+                                        Text(u.phone, fontSize = 11.sp, color = TextSecondary)
+                                    }
                                 }
                             }
                         }
