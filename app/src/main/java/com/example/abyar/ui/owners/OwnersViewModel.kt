@@ -63,10 +63,7 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
             val smallOwners = allUsers.filter { it.role == UserRole.SMALL_OWNER }.sortedByDescending { it.shareHours }
             val operators = allUsers.filter { it.role == UserRole.OPERATOR }
 
-            // نگاشت شناسه سرگروه به شناسه گروه
             val leaderGroupMap = allGroups.associate { it.leaderId to it.id }
-
-            // فقط سرگروه‌هایی که واقعاً یک گروه فعال دارند
             val leaders = allUsers.filter { it.isGroupLeader && leaderGroupMap.containsKey(it.id) }
 
             _grouped.value = GroupedOwners(
@@ -81,6 +78,7 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun saveUser(
+        currentUserRole: UserRole?,
         wellId: String,
         existingUser: User?,
         fullName: String,
@@ -96,6 +94,29 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
         onSuccess: () -> Unit
     ) {
         viewModelScope.launch {
+            // ============ بررسی دسترسی ============
+            when (currentUserRole) {
+                UserRole.MAIN_ADMIN -> { /* دسترسی کامل */ }
+                UserRole.OPERATOR -> {
+                    if (existingUser != null) {
+                        _error.value = "موتوربان اجازه ویرایش کاربران را ندارد"
+                        return@launch
+                    }
+                    if (role != UserRole.SMALL_OWNER) {
+                        _error.value = "موتوربان فقط می‌تواند خرده‌مالک جدید اضافه کند"
+                        return@launch
+                    }
+                    if (isGroupLeader) {
+                        _error.value = "موتوربان نمی‌تواند سرگروه تعیین کند"
+                        return@launch
+                    }
+                }
+                else -> {
+                    _error.value = "شما اجازه این عملیات را ندارید"
+                    return@launch
+                }
+            }
+
             val well = wellDao.getWellById(wellId) ?: run {
                 _error.value = "چاه یافت نشد"; return@launch
             }
@@ -111,8 +132,10 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
             }
 
             if (existingUser == null || existingUser.nationalCode != nationalCode) {
-                if (userDao.getUserByNationalCode(wellId, nationalCode) != null) {
-                    _error.value = "کاربری با این کد ملی در این چاه ثبت شده است"; return@launch
+                val duplicate = userDao.getUserByNationalCode(wellId, nationalCode)
+                if (duplicate != null) {
+                    _error.value = "کاربری با کد ملی ${nationalCode} در این چاه وجود دارد (${duplicate.fullName})"
+                    return@launch
                 }
             }
 
@@ -126,7 +149,6 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
             val effectiveGroupId: String?
 
             if (isGroupLeader) {
-                // اگر سرگروه است: گروه فعالش را پیدا کن یا گروه جدید بساز
                 val existingLeaderGroup = groupDao.getGroupsByWellSync(wellId)
                     .find { it.leaderId == userId }
                 if (existingLeaderGroup != null) {
@@ -144,7 +166,6 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
                     effectiveGroupId = newGroupId
                 }
             } else {
-                // اگر قبلاً سرگروه بوده و الان نیست، گروه قبلی حذف و اعضا آزاد شوند
                 if (existingUser != null && existingUser.isGroupLeader) {
                     val oldGroup = groupDao.getGroupsByWellSync(wellId)
                         .find { it.leaderId == existingUser.id }
@@ -181,14 +202,23 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun deleteOwner(user: User, onSuccess: () -> Unit) {
+    fun deleteOwner(
+        user: User,
+        currentUserRole: UserRole?,
+        onSuccess: () -> Unit
+    ) {
         viewModelScope.launch {
+            // ============ بررسی دسترسی ============
+            if (currentUserRole != UserRole.MAIN_ADMIN) {
+                _error.value = "فقط مدیر اصلی می‌تواند کاربران را حذف کند"
+                return@launch
+            }
+
             if (user.role == UserRole.MAIN_ADMIN) {
                 _error.value = "مدیر اصلی قابل حذف نیست"
                 return@launch
             }
 
-            // اگر سرگروه است، اعضای گروهش را آزاد کن و گروه را حذف کن
             if (user.isGroupLeader) {
                 val leaderGroup = groupDao.getGroupsByWellSync(user.wellId)
                     .find { it.leaderId == user.id }
