@@ -83,14 +83,15 @@ interface TurnDao {
     suspend fun insertTurn(turn: IrrigationTurn)
     @Query("SELECT * FROM irrigation_turns WHERE wellId = :wellId ORDER BY startTime ASC")
     fun getTurnsByWell(wellId: String): Flow<List<IrrigationTurn>>
+    // این متد برای پردازش همزمان جابجایی اضافه شد
+    @Query("SELECT * FROM irrigation_turns WHERE wellId = :wellId ORDER BY startTime ASC")
+    suspend fun getTurnsByWellSync(wellId: String): List<IrrigationTurn>
     @Query("SELECT * FROM irrigation_turns WHERE wellId = :wellId AND userId = :userId ORDER BY startTime ASC")
     fun getTurnsByUser(wellId: String, userId: String): Flow<List<IrrigationTurn>>
     @Query("SELECT * FROM irrigation_turns WHERE wellId = :wellId AND userId = :userId AND status = 'PENDING' ORDER BY startTime ASC LIMIT 1")
     fun getNextPendingTurn(wellId: String, userId: String): Flow<IrrigationTurn?>
     @Query("SELECT * FROM irrigation_turns WHERE wellId = :wellId AND userId = :userId AND status = 'PENDING' ORDER BY startTime ASC LIMIT 1")
     suspend fun getNextPendingTurnSync(wellId: String, userId: String): IrrigationTurn?
-    @Query("SELECT * FROM irrigation_turns WHERE wellId = :wellId AND startTime >= :dayStart AND startTime < :dayEnd ORDER BY startTime ASC")
-    fun getTurnsForDateRange(wellId: String, dayStart: Long, dayEnd: Long): Flow<List<IrrigationTurn>>
     @Query("DELETE FROM irrigation_turns WHERE wellId = :wellId")
     suspend fun deleteTurnsByWell(wellId: String)
     @Query("DELETE FROM irrigation_turns WHERE id = :turnId")
