@@ -52,7 +52,7 @@ fun HomeScreen(
         HomePanel("برنامه آبیاری", Icons.Default.CalendarMonth, AbyarTeal, "schedule"),
         HomePanel("مدیریت مالی", Icons.Default.AccountBalanceWallet, AbyarOrange, "finance"),
         HomePanel("پنل موتوربان", Icons.Default.Engineering, AbyarPurple, "operator"),
-        HomePanel("پنل آبیار", Icons.Default.Agriculture, Color(0xFF00897B), "abyar"),
+    
         HomePanel("اطلاع‌رسانی", Icons.Default.Campaign, Color(0xFFD81B60), "notify"),
         HomePanel("دفترچه تلفن", Icons.Default.ContactPhone, Color(0xFF5E35B1), "contacts"),
         HomePanel("قوانین و ضوابط", Icons.Default.Gavel, Color(0xFF6D4C41), "rules"),
