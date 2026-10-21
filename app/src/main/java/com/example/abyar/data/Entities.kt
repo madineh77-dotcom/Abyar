@@ -42,11 +42,11 @@ data class User(
     val nationalCode: String,
     val shareHours: Double = 0.0,
     val role: UserRole = UserRole.SMALL_OWNER,
-    val isGroupLeader: Boolean = false,  // سرگروه بودن جدا از نقش است
+    val isGroupLeader: Boolean = false,
     val operatorWageType: WageType? = null,
     val operatorWageAmount: Double = 0.0,
-    // فیلدهای آبیار حذف شدند
-    val groupId: String? = null,
+    val includeWageInSchedule: Boolean = true, // آیا دستمزد در برنامه آبیاری لحاظ شود؟
+    val groupId: String? = null,               // به کدام سرگروه متصل است
     val createdAt: Long = System.currentTimeMillis()
 ) {
     val roleLabel: String
@@ -57,17 +57,6 @@ data class User(
             UserRole.OPERATOR -> "موتوربان"
         }
 }
-
-@Entity(tableName = "irrigation_turns")
-data class IrrigationTurn(
-    @PrimaryKey val id: String,
-    val wellId: String,
-    val userId: String,
-    val userName: String,
-    val startTime: Long,
-    val endTime: Long,
-    val status: String
-)
 
 @Entity(tableName = "transactions")
 data class Transaction(
