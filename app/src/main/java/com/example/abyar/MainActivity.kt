@@ -51,7 +51,6 @@ class MainActivity : ComponentActivity() {
 
                     val homeVm: HomeViewModel = viewModel()
 
-                    // بارگذاری داده‌های چاه فعال
                     LaunchedEffect(currentWellId, userNationalCode) {
                         val wid = currentWellId
                         if (wid != null && userNationalCode.isNotBlank()) {
@@ -85,7 +84,6 @@ class MainActivity : ComponentActivity() {
                     }
                     val hasTurn = remember(nextTurn) { nextTurn != null }
 
-                    // --------- BackHandler ---------
                     val shouldHandleBack = when {
                         showOnboarding -> false
                         userNationalCode.isBlank() -> false
@@ -120,7 +118,6 @@ class MainActivity : ComponentActivity() {
                                     userName = name
                                     userPhone = phone
                                     userNationalCode = nc
-                                    // بازیابی خودکار اطلاعات چاه قبلی (اگر وجود داشته باشد)
                                     if (currentWellId != null) {
                                         homeVm.loadWell(currentWellId!!, nc)
                                     }
@@ -154,6 +151,7 @@ class MainActivity : ComponentActivity() {
                                         wellName = well?.name ?: "",
                                         onBack = { },
                                         onManageGroups = { currentScreen = "groups" },
+                                        onManageOwners = { currentScreen = "owners" },
                                         onFullSchedule = { currentScreen = "schedule" },
                                         onNotify = { currentScreen = "notify" },
                                         onEditProfile = { currentScreen = "profile" }
@@ -181,6 +179,7 @@ class MainActivity : ComponentActivity() {
                                         endTurnText = endText,
                                         hasTurn = hasTurn,
                                         userShareHours = currentUser?.shareHours ?: 0.0,
+                                        userRole = currentUser?.role,
                                         onEditProfile = { currentScreen = "profile" },
                                         onSwitchWell = { currentScreen = "wells" },
                                         onPanelClick = { route ->
@@ -204,13 +203,12 @@ class MainActivity : ComponentActivity() {
                                     userName = name
                                     userPhone = phone
                                     userNationalCode = nc
-                                    
-                                    // بازیابی خودکار اطلاعات کاربر بر اساس کد ملی جدید
+
                                     val wid = currentWellId
                                     if (wid != null) {
                                         homeVm.loadWell(wid, nc)
                                     }
-                                    
+
                                     currentScreen = "home"
                                 },
                                 onBack = { currentScreen = "home" }
@@ -234,6 +232,7 @@ class MainActivity : ComponentActivity() {
 
                         currentScreen == "well" -> {
                             WellScreen(
+                                userRole = currentUser?.role,
                                 onBack = { currentScreen = "home" },
                                 onWellSaved = { currentScreen = "home" }
                             )
@@ -244,6 +243,7 @@ class MainActivity : ComponentActivity() {
                             if (wid != null) {
                                 OwnersScreen(
                                     wellId = wid,
+                                    userRole = currentUser?.role,
                                     onBack = { currentScreen = "home" }
                                 )
                             } else {
@@ -259,7 +259,7 @@ class MainActivity : ComponentActivity() {
                             if (wid != null) {
                                 ScheduleScreen(
                                     wellId = wid,
-                                    userRole = currentUser?.role, // ← پاس دادن نقش برای محدودیت تولید
+                                    userRole = currentUser?.role,
                                     onBack = { currentScreen = "home" }
                                 )
                             } else {
@@ -278,6 +278,7 @@ class MainActivity : ComponentActivity() {
                                     wellName = well?.name ?: "",
                                     onBack = { currentScreen = "home" },
                                     onManageGroups = { currentScreen = "groups" },
+                                    onManageOwners = { currentScreen = "owners" },
                                     onFullSchedule = { currentScreen = "schedule" },
                                     onNotify = { currentScreen = "notify" },
                                     onEditProfile = { currentScreen = "profile" }
