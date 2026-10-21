@@ -5,7 +5,6 @@ import androidx.room.PrimaryKey
 
 enum class WageType { CASH, FROM_TOTAL, FROM_OWN_SHARE }
 
-// نقش آبیار حذف شد
 enum class UserRole {
     MAIN_ADMIN,      // مدیر اصلی
     MAJOR_OWNER,     // مالک عمده
@@ -45,8 +44,8 @@ data class User(
     val isGroupLeader: Boolean = false,
     val operatorWageType: WageType? = null,
     val operatorWageAmount: Double = 0.0,
-    val includeWageInSchedule: Boolean = true, // آیا دستمزد در برنامه آبیاری لحاظ شود؟
-    val groupId: String? = null,               // به کدام سرگروه متصل است
+    val includeWageInSchedule: Boolean = true,
+    val groupId: String? = null,
     val createdAt: Long = System.currentTimeMillis()
 ) {
     val roleLabel: String
@@ -58,11 +57,22 @@ data class User(
         }
 }
 
+@Entity(tableName = "irrigation_turns")
+data class IrrigationTurn(
+    @PrimaryKey val id: String,
+    val wellId: String,
+    val userId: String,
+    val userName: String,
+    val startTime: Long,
+    val endTime: Long,
+    val status: String
+)
+
 @Entity(tableName = "transactions")
 data class Transaction(
     @PrimaryKey val id: String,
     val wellId: String,
-    val type: String,
+    val type: String,       // INCOME or EXPENSE
     val category: String,
     val amount: Long,
     val date: Long,
