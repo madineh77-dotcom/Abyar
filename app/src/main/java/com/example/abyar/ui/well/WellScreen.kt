@@ -3,6 +3,7 @@ package com.example.abyar.ui.well
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -16,9 +17,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.abyar.data.UserRole
 import com.example.abyar.data.Well
 import com.example.abyar.ui.theme.*
 import com.example.abyar.util.toEnglishDigits
@@ -26,6 +29,7 @@ import com.example.abyar.util.toEnglishDigits
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WellScreen(
+    userRole: UserRole?,
     onBack: () -> Unit,
     onWellSaved: (Well) -> Unit,
     vm: WellViewModel = viewModel()
@@ -34,6 +38,7 @@ fun WellScreen(
     val error by vm.error.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
+    val canEdit = userRole == UserRole.MAIN_ADMIN
 
     var isEditing by remember { mutableStateOf(false) }
 
@@ -48,7 +53,7 @@ fun WellScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("ثبت و ویرایش چاه", color = Color.White, fontWeight = FontWeight.Bold) },
+                title = { Text("مشخصات چاه", color = Color.White, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, null, tint = Color.White)
@@ -67,26 +72,77 @@ fun WellScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // بنر حالت مشاهده
+            if (!canEdit) {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = CardOrangeLight)
+                ) {
+                    Row(
+                        Modifier.padding(12.dp).fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Visibility, null, tint = AbyarOrange, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "شما در حالت مشاهده هستید. ویرایش مشخصات چاه فقط با مدیر اصلی است.",
+                            fontSize = 12.sp,
+                            color = AbyarOrange,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+
             when {
-                // حالت نمایش (چاه ثبت شده ولی در حال ویرایش نیست)
                 existingWell != null && !isEditing -> {
                     WellInfoCard(
                         well = existingWell!!,
+                        canEdit = canEdit,
                         onEdit = { isEditing = true }
                     )
                 }
 
-                // حالت فرم (چاه جدید یا ویرایش)
+                existingWell == null && !canEdit -> {
+                    // نباید به اینجا برسیم — محافظت
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE))
+                    ) {
+                        Column(
+                            Modifier.padding(24.dp).fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(Icons.Default.Lock, null, tint = AbyarRed, modifier = Modifier.size(64.dp))
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "دسترسی محدود",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AbyarRed
+                            )
+                            Text(
+                                "فقط مدیر اصلی می‌تواند چاه ثبت کند",
+                                fontSize = 13.sp,
+                                color = TextSecondary,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+
                 else -> {
                     WellForm(
                         existingWell = existingWell,
                         onSaveNew = { name, loc, days ->
-                            vm.saveWell(name, loc, days) { well ->
+                            vm.saveWell(name, loc, days, userRole) { well ->
                                 onWellSaved(well)
                             }
                         },
                         onUpdate = { name, loc, days ->
-                            vm.updateWell(existingWell!!.id, name, loc, days) {
+                            vm.updateWell(existingWell!!.id, name, loc, days, userRole) {
                                 isEditing = false
                             }
                         },
@@ -101,11 +157,8 @@ fun WellScreen(
     }
 }
 
-/**
- * کارت نمایش اطلاعات چاه (با دکمه ویرایش)
- */
 @Composable
-private fun WellInfoCard(well: Well, onEdit: () -> Unit) {
+private fun WellInfoCard(well: Well, canEdit: Boolean, onEdit: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -126,10 +179,16 @@ private fun WellInfoCard(well: Well, onEdit: () -> Unit) {
                 Spacer(Modifier.width(16.dp))
                 Column(Modifier.weight(1f)) {
                     Text("چاه ثبت شده است", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = AbyarBlueDark)
-                    Text("اطلاعات زیر قابل ویرایش است", fontSize = 12.sp, color = TextSecondary)
+                    Text(
+                        if (canEdit) "اطلاعات زیر قابل ویرایش است" else "اطلاعات چاه",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
                 }
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Default.Edit, null, tint = AbyarBlue)
+                if (canEdit) {
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Default.Edit, null, tint = AbyarBlue)
+                    }
                 }
             }
 
@@ -140,24 +199,23 @@ private fun WellInfoCard(well: Well, onEdit: () -> Unit) {
             InfoRow("مدت مدار", "${well.cycleDurationDays} روز")
             InfoRow("کل ساعت آب", "${well.totalHours.toInt()} ساعت")
 
-            Spacer(Modifier.height(16.dp))
-            Button(
-                onClick = onEdit,
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AbyarBlue)
-            ) {
-                Icon(Icons.Default.Edit, null, tint = Color.White)
-                Spacer(Modifier.width(8.dp))
-                Text("ویرایش اطلاعات چاه", fontWeight = FontWeight.Bold)
+            if (canEdit) {
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    onClick = onEdit,
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AbyarBlue)
+                ) {
+                    Icon(Icons.Default.Edit, null, tint = Color.White)
+                    Spacer(Modifier.width(8.dp))
+                    Text("ویرایش اطلاعات چاه", fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
 }
 
-/**
- * فرم ثبت یا ویرایش چاه
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun WellForm(
@@ -170,11 +228,10 @@ private fun WellForm(
 
     var name by remember(existingWell?.id) { mutableStateOf(existingWell?.name ?: "") }
     var location by remember(existingWell?.id) { mutableStateOf(existingWell?.location ?: "") }
-    var cycleDays by remember(existingWell?.id) { 
-        mutableStateOf(existingWell?.cycleDurationDays?.toString() ?: "") 
+    var cycleDays by remember(existingWell?.id) {
+        mutableStateOf(existingWell?.cycleDurationDays?.toString() ?: "")
     }
 
-    // محاسبه خودکار کل ساعت
     val cycleDaysInt = cycleDays.toIntOrNull() ?: 0
     val totalHours = cycleDaysInt * 24
 
@@ -244,7 +301,6 @@ private fun WellForm(
                 singleLine = true
             )
 
-            // نمایش خودکار کل ساعت آب
             Card(
                 colors = CardDefaults.cardColors(
                     containerColor = if (totalHours > 0) CardGreenLight else Color(0xFFF5F5F5)
@@ -279,26 +335,6 @@ private fun WellForm(
                     Icon(Icons.Default.Calculate, null, tint = Color.Gray, modifier = Modifier.size(20.dp))
                 }
             }
-
-            // توضیح فرمول
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CardBlueLight),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Info, null, tint = AbyarBlue, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "کل ساعت آب = مدت مدار × 24 ساعت (شبانه‌روزی)",
-                        fontSize = 11.sp,
-                        color = AbyarBlue,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(4.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (isEditing) {
@@ -339,15 +375,6 @@ private fun WellForm(
                         Text("ثبت چاه و تولید کد یکتا", fontWeight = FontWeight.Bold)
                     }
                 }
-            }
-
-            if (!isEditing) {
-                Text(
-                    "با ثبت چاه، یک کد ۸ رقمی یکتا به صورت خودکار تولید می‌شود.",
-                    fontSize = 11.sp,
-                    color = TextSecondary,
-                    lineHeight = 16.sp
-                )
             }
         }
     }
