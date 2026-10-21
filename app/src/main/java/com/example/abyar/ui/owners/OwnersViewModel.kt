@@ -20,20 +20,20 @@ data class GroupedOwners(
     val mainAdmin: User?,
     val majorOwners: List<User>,
     val smallOwners: List<User>,
-    val operators: List<User>
+    val operators: List<User>,
+    val availableLeaders: List<User> // برای انتخاب سرگروه
 )
 
 class OwnersViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
     private val userDao = db.userDao()
     private val wellDao = db.wellDao()
+    private val groupDao = db.groupDao()
 
     private val _stats = MutableStateFlow(OwnersStats(0.0, 0.0, 0.0, 0))
     val stats: StateFlow<OwnersStats> = _stats
 
-    private val _grouped = MutableStateFlow(
-        GroupedOwners(null, emptyList(), emptyList(), emptyList())
-    )
+    private val _grouped = MutableStateFlow(GroupedOwners(null, emptyList(), emptyList(), emptyList(), emptyList()))
     val grouped: StateFlow<GroupedOwners> = _grouped
 
     private val _error = MutableStateFlow("")
@@ -58,8 +58,11 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
             val majorOwners = allUsers.filter { it.role == UserRole.MAJOR_OWNER }.sortedByDescending { it.shareHours }
             val smallOwners = allUsers.filter { it.role == UserRole.SMALL_OWNER }.sortedByDescending { it.shareHours }
             val operators = allUsers.filter { it.role == UserRole.OPERATOR }
+            
+            // لیست کسانی که به عنوان سرگروه انتخاب شده‌اند
+            val leaders = allUsers.filter { it.isGroupLeader }
 
-            _grouped.value = GroupedOwners(mainAdmin, majorOwners, smallOwners, operators)
+            _grouped.value = GroupedOwners(mainAdmin, majorOwners, smallOwners, operators, leaders)
         }
     }
 
@@ -72,14 +75,15 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
         shareHours: Double,
         role: UserRole,
         isGroupLeader: Boolean,
+        groupId: String?,
         operatorWageType: WageType?,
         operatorWageAmount: Double,
+        includeWageInSchedule: Boolean,
         onSuccess: () -> Unit
     ) {
         viewModelScope.launch {
             val well = wellDao.getWellById(wellId) ?: run { _error.value = "چاه یافت نشد"; return@launch }
 
-            // اعتبارسنجی‌ها
             when {
                 fullName.isBlank() -> { _error.value = "نام الزامی است"; return@launch }
                 phone.length != 11 -> { _error.value = "شماره تماس باید ۱۱ رقم باشد"; return@launch }
@@ -87,7 +91,6 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
                 shareHours < 0 -> { _error.value = "سهم نمی‌تواند منفی باشد"; return@launch }
             }
 
-            // بررسی تکراری نبودن کد ملی (اگر کاربر جدید است یا کد ملی عوض شده)
             if (existingUser == null || existingUser.nationalCode != nationalCode) {
                 val dup = userDao.getUserByNationalCode(wellId, nationalCode)
                 if (dup != null) {
@@ -96,7 +99,7 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
 
-            // بررسی مجموع سهم (با کسر سهم قبلی در صورت ویرایش)
+            // بررسی مجموع سهم
             val currentTotal = userDao.getTotalShareHours(wellId) ?: 0.0
             val previousShare = existingUser?.shareHours ?: 0.0
             val otherSharesTotal = currentTotal - previousShare
@@ -107,10 +110,30 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
                 return@launch
             }
 
+            // اگر کاربر سرگروه شد، باید یک گروه هم برایش ساخته شود
+            var finalGroupId = groupId
+            if (isGroupLeader) {
+                finalGroupId = null // سرگروه در گروه خودش قرار نمی‌گیرد، بلکه گروه را می‌سازد
+                // بررسی اینکه آیا از قبل گروهی با این سرگروهی وجود دارد یا نه
+                val existingGroups = groupDao.getGroupsByWellSync(wellId)
+                val leaderGroup = existingGroups.find { it.leaderId == existingUser?.id }
+                
+                if (leaderGroup == null) {
+                    // ساخت گروه جدید برای این سرگروه
+                    val newGroupId = UUID.randomUUID().toString()
+                    groupDao.insertGroup(OwnerGroup(
+                        id = newGroupId,
+                        wellId = wellId,
+                        name = "گروه ${fullName.trim()}",
+                        leaderId = existingUser?.id ?: UUID.randomUUID().toString() // موقت، بعدا آپدیت می‌شود
+                    ))
+                }
+            }
+
             if (existingUser == null) {
-                // ثبت جدید
+                val userId = UUID.randomUUID().toString()
                 val user = User(
-                    id = UUID.randomUUID().toString(),
+                    id = userId,
                     wellId = wellId,
                     fullName = fullName.trim(),
                     phone = phone.trim(),
@@ -120,11 +143,19 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
                     isGroupLeader = isGroupLeader,
                     operatorWageType = if (role == UserRole.OPERATOR) operatorWageType else null,
                     operatorWageAmount = if (role == UserRole.OPERATOR) operatorWageAmount else 0.0,
-                    groupId = null
+                    includeWageInSchedule = if (role == UserRole.OPERATOR) includeWageInSchedule else true,
+                    groupId = if (isGroupLeader) null else groupId
                 )
                 userDao.insertUser(user)
+                
+                // آپدیت گروهی که برای این سرگروه ساخته شد
+                if (isGroupLeader) {
+                    val group = groupDao.getGroupsByWellSync(wellId).find { it.leaderId == existingUser?.id }
+                    if (group != null && group.leaderId == existingUser?.id) {
+                        groupDao.updateGroup(group.copy(leaderId = userId))
+                    }
+                }
             } else {
-                // ویرایش
                 val updated = existingUser.copy(
                     fullName = fullName.trim(),
                     phone = phone.trim(),
@@ -133,7 +164,9 @@ class OwnersViewModel(application: Application) : AndroidViewModel(application) 
                     role = role,
                     isGroupLeader = isGroupLeader,
                     operatorWageType = if (role == UserRole.OPERATOR) operatorWageType else null,
-                    operatorWageAmount = if (role == UserRole.OPERATOR) operatorWageAmount else 0.0
+                    operatorWageAmount = if (role == UserRole.OPERATOR) operatorWageAmount else 0.0,
+                    includeWageInSchedule = if (role == UserRole.OPERATOR) includeWageInSchedule else true,
+                    groupId = if (isGroupLeader) null else groupId
                 )
                 userDao.updateUser(updated)
             }
