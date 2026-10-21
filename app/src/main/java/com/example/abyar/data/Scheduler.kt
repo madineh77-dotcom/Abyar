@@ -18,7 +18,7 @@ object Scheduler {
             operator.operatorWageAmount > 0
         ) operator.operatorWageAmount else 0.0
 
-        // ۱. دستمزد از کل چاه (قبل از نوبت مالکان)
+        // ۱. دستمزد از کل چاه — قبل از نوبت مالکان ثبت می‌شود
         if (operator != null &&
             operator.operatorWageType == WageType.FROM_TOTAL &&
             wageHours > 0
@@ -38,7 +38,7 @@ object Scheduler {
             currentTime += wageMs
         }
 
-        // ۲. نوبت مالکان (کسر دستمزد از سهم خود موتوربان در صورت لزوم)
+        // ۲. نوبت مالکان — با کسر دستمزد از سهم خود موتوربان در صورت لزوم
         val sorted = owners
             .filter { it.shareHours > 0.0 }
             .sortedByDescending { it.shareHours }
